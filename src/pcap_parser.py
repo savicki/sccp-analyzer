@@ -12,6 +12,10 @@ from mtp_session import MTPSession, MTPSessionIterator, RelayPoint
 from json_serialization import SkinnySessionsJsonEncoder, SkinnySessionsJsonDecoder
 
 
+skip_names = [
+]
+
+
 def iterate_session(msg_flow, iterator, context = None):
     
     ### print "[iterate_session] prev_layer_status = %s" % hex(prev_layer_status)
@@ -100,21 +104,23 @@ def process_pcap(filename):
 sccp_sessions = [] # TcpSession, then SessionBase instance (Phone, Mtp)
 
 parser = argparse.ArgumentParser()
-parser.add_argument('-f', '--json-file', help='filename to save json output', required=True)
-parser.add_argument('-d', '--dir', help='directory with pcaps', required=True)
-parser.add_argument('-pf', '--pcap-file', help='particular .pcap filename', required=False)
+
+parser.add_argument('-d', '--dir', help='directory with pcap files', required=True)
+parser.add_argument('-f', '--pcap-file', help='particular .pcap filename', required=False)
+
 parser.add_argument('-ps', '--pcap-start', help='.pcap filename to start from', required=False)
-parser.add_argument('-pl', '--pcap-limit', help='.pcap limit', required=False, type=int)
+parser.add_argument('-pl', '--pcap-limit', help='.pcap limit', required=False, type=int, default=0)
+
+parser.add_argument('-jf', '--json-file', help='filename to save json output', required=False)
 
 
 if __name__ == "__main__":
 
     args = parser.parse_args()
     ### print args
-    dirname = args.dir
-    filenames = [args.pcap_file] if args.pcap_file  else os.listdir(dirname)
+    filenames = [args.pcap_file] if args.pcap_file  else os.listdir(args.dir)
     start_filename = args.pcap_start
-    pcap_limit = args.pcap_limit if args.pcap_limit else 0
+    pcap_limit = args.pcap_limit
 
     
     #print files
@@ -134,7 +140,7 @@ if __name__ == "__main__":
             print "skip %s" % filename
             continue
 
-        fullpath = os.path.join(dirname, filename)
+        fullpath = os.path.join(args.dir, filename)
         sccp_sessions_from_pcap = process_pcap(fullpath)
         
         if len(sccp_sessions_from_pcap) > 0:
@@ -145,8 +151,9 @@ if __name__ == "__main__":
             print 'pcap limit %s reached, exit' % pcap_limit
             break
 
-    calls_json = json.dumps(sccp_sessions, cls=SkinnySessionsJsonEncoder, indent=4)
+    if args.json_file:
+        calls_json = json.dumps(sccp_sessions, cls=SkinnySessionsJsonEncoder, indent=4)
 
-    json_file = open(args.json_file, "w") 
-    json_file.write(calls_json) 
-    json_file.close()
+        json_file = open(args.json_file, "w") 
+        json_file.write(calls_json) 
+        json_file.close()

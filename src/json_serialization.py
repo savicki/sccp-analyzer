@@ -23,6 +23,10 @@ _JSON_ENUMS = {
 }
 
 
+def str_with_fatfloat(x):
+    return str(x) if type(x) != float else str('%.20g' % x)
+
+
 def _str2enum(arg):
     ### print "_str2enum ", type(arg) == unicode, arg
     if type(arg) == unicode:
@@ -72,7 +76,7 @@ class SkinnySessionsJsonEncoder(json.JSONEncoder):
             return {
                 "_type": obj.__class__.__name__, 
                 # "value": _convert_keys(get_public_fields(obj.__dict__), convert_val=_enum2str)
-                "value": _convert_keys(obj.get_json_dict(), convert_val=_enum2str)
+                "value": _convert_keys(obj.get_json_dict(), convert_key=str_with_fatfloat, convert_val=_enum2str)
             }
 
         return super(SkinnySessionsJsonEncoder, self).default(obj)

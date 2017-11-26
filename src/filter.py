@@ -230,7 +230,20 @@ _fields_mapper = {
     'call': {
         'callid'            : Num ('call.callid'),
         'states'            : Array( Num('call.states_history.values()') ),
-        'rtp_flows'         : Array( Num('call.rtp_flows.keys()') ),
+        'errors'            : Array( BitNum('call.call_errors') ),
+        'attrs'             : Array( BitNum('call.call_attrs') ),
+        'soft_keys'         : Array( Num('call.keys_history.values()') ),
+
+        'rtp' : {
+            'flows'         : Array( Num('call.rtp_flows.keys()') ),
+            'flows_oneway'  : Array( Num('call.rtp_flows_oneway.keys()') ),
+            'flows_duplex'  : Array( Num('call.rtp_flows_twoway.keys()') ),
+            'flows_error'   : Array( Num('call.rtp_flows_unknown.keys()') ),
+            'stats'         : Array( Num('call.rtp_stats.keys()') ),
+            'dur_min'       : Num('call.rtp_durations[0]'),
+            'dur_max'       : Num('call.rtp_durations[1]')
+        },
+        
         'time' : {
             'start'         : Num('call["st_time"]'),
             'end'           : Num('call["end_time"]')

@@ -378,10 +378,10 @@ class PhoneSession(SessionBase, JsonSerializable, RtpFlowsContainer):
         
         self.calls_history[limit_ind] = (callid, True)
 
-        #limit_ind += 1 # DON'T print @callid right now
+        DELTA = 2
 
-        # print previously ended items
-        while self.__next_print_ind < limit_ind:
+        # print previously ended items up to @DELTA closer to this
+        while limit_ind - self.__next_print_ind >= DELTA:
 
             if self.calls_history[self.__next_print_ind][1] == False:
                 break;
@@ -393,7 +393,8 @@ class PhoneSession(SessionBase, JsonSerializable, RtpFlowsContainer):
             print_item = self.calls[callid] if callid > 0 else self
 
             if isinstance(print_item, CallInfo):
-                self.session_errors |= print_item.show_call_details()
+                if print_item.complete_call():
+                    self.session_errors |= print_item.show_call_details()
             else:
                 print_item.show_session_details()
 
@@ -414,7 +415,8 @@ class PhoneSession(SessionBase, JsonSerializable, RtpFlowsContainer):
             print_item = self.calls[callid] if callid > 0 else self
             
             if isinstance(print_item, CallInfo):
-                self.session_errors |= print_item.show_call_details()
+                if print_item.complete_call():
+                    self.session_errors |= print_item.show_call_details()
 
                 # print "********"
                 # print json.dumps(print_item.__dict__, cls=CallInfoJsonEncoder, indent=4)
@@ -445,7 +447,7 @@ class PhoneSession(SessionBase, JsonSerializable, RtpFlowsContainer):
                     uniq_keys.append(key)
 
         self.calls_summary["soft_keys"] = uniq_keys
-        print "keys:", uniq_keys
+        print "soft keys:", uniq_keys
 
 
         uniq_states = []
@@ -455,7 +457,7 @@ class PhoneSession(SessionBase, JsonSerializable, RtpFlowsContainer):
                     uniq_states.append(state)
 
         self.calls_summary["call_states"] = uniq_states
-        print "states:", uniq_states
+        print "call states:", uniq_states
 
 
         uniq_ctypes = []
@@ -829,7 +831,7 @@ class PhoneSessionIterator(SessionIterator, SessionHandler):
             if sub_msg.callid != 0 and self._context.calls.has_key(sub_msg.callid):
                 call_info = self._context.calls[sub_msg.callid]
 
-            self._context.set_session_error( ErrorType2.UnknownSoftKey )
+            self._context.set_session_error( ErrorType2.SoftKeyUnknown )
 
         if call_info != None:
             call_info.keys_history[pkt_time] = SkinnyKeyEvents(sub_msg.key) if sub_msg.key <= SkinnyKeyEvents.MaxKnown else sub_msg.key
@@ -856,6 +858,7 @@ class PhoneSessionIterator(SessionIterator, SessionHandler):
             rtp_flow = call_info.get_rtp_flow(sub_msg.passthru)
             rtp_flow.flags |= RtpFlowFlags.LocalConfirmed
             rtp_flow.local = (sub_msg.remote, sub_msg.port)
+            rtp_flow.set_st_timestamp(pkt_time)
 
 
     def __process__0x0154__start_media_transmission_ack(self, msg, fdir, pkt_time):
@@ -871,6 +874,7 @@ class PhoneSessionIterator(SessionIterator, SessionHandler):
             rtp_flow = call_info.get_rtp_flow(sub_msg.passthru)
             rtp_flow.flags |= RtpFlowFlags.RemoteConfirmed
             rtp_flow.local_orig = (sub_msg.remote, sub_msg.port)
+            rtp_flow.set_st_timestamp(pkt_time)
 
 
     def __process__0x0023__connection_stat_res(self, msg, fdir, pkt_time):
@@ -883,22 +887,36 @@ class PhoneSessionIterator(SessionIterator, SessionHandler):
         if self._context.calls.has_key(sub_msg.callid):
             call_info = self._context.calls[sub_msg.callid]
 
-            # TODO: count errors! (0 bytes recv.)
+            rtp_stats = sub_msg.get_stats()
+            call_info.rtp_stats[pkt_time] = rtp_stats
 
-            #self.__test_call_info_alive(call_info, msg.msg)
-            #self.__test_call_info_state(call_info, msg.msg, ParseState.CLOSED, True)
 
-            # TODO: collect stats per RTP pair
-            # was in 'Connected' state..
-            if SkinnyCallStates.Connected in call_info.states_history.values():
-                # ..and now (last state) not in 'Hold'
-                #if call_info.states_history[-1] != 0x8:
+            if rtp_stats['packetsSent'] == 0 and rtp_stats['packetsRecv'] == 0:
+                # be carefull here: this may be (false positive) triggered by 0-sec long RTP flow,
+                # until now we can't reliable map RTP to ConnectionStatRes messages
+                call_info.set_call_error(ErrorType2.RtpNoMedia)
 
-                call_info.statistics_res = sub_msg.get_stats()
+            elif rtp_stats['packetsSent'] == 0:
+                call_info.set_call_error(ErrorType2.RtpOneWayMediaNoSend)
 
-                # call_info.show_rtp_stats()
-            else:
-                raise ValueError('got stat res for callid %s which missed CONNECTED state' % call_info.callid)
+            elif rtp_stats['packetsRecv'] == 0:
+                call_info.set_call_error(ErrorType2.RtpOneWayMediaNoRecv)
+
+
+    def __process__0x002A__media_transmission_failure(self, msg, fdir, pkt_time):
+        raise ValueError('handle me')
+
+        self._test_no_raw_layer(msg)
+
+        sub_msg = msg[SkinnyMessageMediaTransmissionFailure]
+        #sub_msg.show()
+
+        if self._context.calls.has_key(sub_msg.callid):
+            call_info = self._context.calls[sub_msg.callid]
+
+            call_info.set_call_error(ErrorType2.RtpMediaFailure)
+
+            # TODO: attach BIT to RtpFlow
 
 
     #
@@ -1092,6 +1110,8 @@ class PhoneSessionIterator(SessionIterator, SessionHandler):
             rtp_flow = call_info.get_rtp_flow(sub_msg.passthru)
             rtp_flow.flags |= RtpFlowFlags.Local
             rtp_flow.remote_orig = (sub_msg.remote, sub_msg.remotePortNumber)
+            rtp_flow.set_st_timestamp(pkt_time)
+            rtp_flow.local_rate = sub_msg.rate # recv rate
 
 
     def __process__0x008A__start_media_transmission(self, msg, fdir, pkt_time):
@@ -1107,6 +1127,8 @@ class PhoneSessionIterator(SessionIterator, SessionHandler):
             rtp_flow = call_info.get_rtp_flow(sub_msg.passthru)
             rtp_flow.flags |= RtpFlowFlags.Remote
             rtp_flow.remote = (sub_msg.remote, sub_msg.port)
+            rtp_flow.set_st_timestamp(pkt_time)
+            rtp_flow.remote_rate = sub_msg.rate # send rate
 
 
     def __process__0x0106__close_receive_channel(self, msg, fdir, pkt_time):
@@ -1122,6 +1144,7 @@ class PhoneSessionIterator(SessionIterator, SessionHandler):
             rtp_flow = call_info.get_rtp_flow(sub_msg.passthru, False)
             if rtp_flow:
                 rtp_flow.flags |= RtpFlowFlags.LocalClosed
+                rtp_flow.set_end_timestamp(pkt_time)
 
 
     def __process__0x008B__stop_media_transmission(self, msg, fdir, pkt_time):
@@ -1137,6 +1160,7 @@ class PhoneSessionIterator(SessionIterator, SessionHandler):
             rtp_flow = call_info.get_rtp_flow(sub_msg.passthru, False)
             if rtp_flow:
                 rtp_flow.flags |= RtpFlowFlags.RemoteClosed
+                rtp_flow.set_end_timestamp(pkt_time)
 
 
     def __process__0x0107__connection_stat_req(self, msg, fdir, pkt_time):

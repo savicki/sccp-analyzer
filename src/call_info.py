@@ -17,6 +17,8 @@ class SkinnyCallAttrs(BitEnum):
     Transfer    = 1 << 5        #  key & (Transfer | Resume) != 0 AND state & Hold != 0     # +
     Conference  = 1 << 6        #  key & (Join | Confrn) != 0
     Park        = 1 << 7        #  key & Park != 0
+    OneWayMediaSetup = 1 << 8
+    NoRtpStats  = 1 << 9
 
     @staticmethod
     def str(attrs):
@@ -35,6 +37,8 @@ skinny_call_attrs = {
     SkinnyCallAttrs.Transfer : "Transfer",
     SkinnyCallAttrs.Conference : "Conference",
     SkinnyCallAttrs.Park : "Park",
+    SkinnyCallAttrs.OneWayMediaSetup : "OneWayMediaSetup",
+    SkinnyCallAttrs.NoRtpStats : "NoRtpStats",
 }
 
 
@@ -103,9 +107,38 @@ class CallInfo(JsonSerializable, Ownable, MediaEndpoint):
 
         if data:
             self.__dict__ = data
+            self.rtp_flows_oneway = {}
+            self.rtp_flows_twoway = {}
+            self.rtp_flows_unknown = {}
 
-            for rtpf in self.rtp_flows.values():
+            min_dur, max_dur = 0, 0
+
+            #
+            # (1) classify rtp flows (2) collect their extreme durations
+            #
+            for rtp_key, rtpf in self.rtp_flows.items():
                 rtpf.set_owner(self)
+
+                if rtpf.is_two_way():
+                    self.rtp_flows_twoway[rtp_key] = rtpf
+                elif rtpf.is_one_way():
+                    self.rtp_flows_oneway[rtp_key] = rtpf
+                else: # e.g. one-way without ORCA, only ORC + ClRC
+                    self.rtp_flows_unknown[rtp_key] = rtpf
+
+                dur = rtpf.get_duration_sec();
+                if dur != None:
+                    if dur > max_dur:
+                        max_dur = dur
+                    
+                    if min_dur == 0 or dur < min_dur:
+                        min_dur = dur
+
+            if len(self.rtp_flows_oneway) + len(self.rtp_flows_twoway) + len(self.rtp_flows_unknown) != len(self.rtp_flows):
+                raise ValueError('lost RtpFlow')
+
+            self.rtp_durations = (min_dur, max_dur)
+
         else:
             self.st_time = 0    # by ParseState.OPENED
             self.end_time = 0   # by ParseState.CLOSED
@@ -122,9 +155,8 @@ class CallInfo(JsonSerializable, Ownable, MediaEndpoint):
 
             # time => value
             self.states_history = {}
+            # time => value
             self.keys_history = {}
-
-            self.statistics_res = None
 
             self.parse_state = ParseState.NOT_SET
             self.pstates_history = []       
@@ -132,8 +164,14 @@ class CallInfo(JsonSerializable, Ownable, MediaEndpoint):
 
             self.call_errors = ErrorType2.No
             self.call_attrs = SkinnyCallAttrs.No
+
             # ppid => RtpFlow
             self.rtp_flows = {}
+            # count(ConnStatRes) <= count(ConnStatReq), so we collect only responses
+            # time => stats
+            self.rtp_stats = {}
+            # (min, max)
+            self.rtp_durations = (0, 0)
 
 
     def set_call_attribute(self, attr_bit):
@@ -185,13 +223,42 @@ class CallInfo(JsonSerializable, Ownable, MediaEndpoint):
         
         #print "[update_pstate] CallInfo: [%s] line = %s, parse_state = %s, call_type = %s" % (self.callid, self.line, self.parse_state, self.call_type)
 
-        if time != None:
+        if time:
             if pstate == ParseState.OPENED:
                 if self.st_time == 0:
                     self.st_time = time
 
             elif pstate == ParseState.CLOSED:
                 self.end_time = time
+
+
+    def complete_call(self):
+
+        if self.parse_state != ParseState.CLOSED:
+            return False
+
+        #
+        # find one-way media flows
+        #
+        rtp_flags = 0
+
+        for rtpf in self.rtp_flows.values():
+            rtp_flags |= rtpf.analyze()
+
+        if (rtp_flags & RtpFlowFlags.OneWayMediaSetup) != 0:
+            self.call_attrs |= SkinnyCallAttrs.OneWayMediaSetup
+
+        #
+        # TODO: map ConnStatRes to RtpFlow
+        #
+
+        #
+        # check for rtp stats presence
+        #
+        if len(self.rtp_stats) == 0:
+            self.call_attrs |= SkinnyCallAttrs.NoRtpStats
+
+        return True
 
 
     def show_call_details(self, compact = False, label = '', padding = ''):
@@ -222,18 +289,21 @@ class CallInfo(JsonSerializable, Ownable, MediaEndpoint):
 
             print padding, map( (lambda time : skinny_callstates[ self.states_history[time] ]), sorted(self.states_history.keys()) )
             print padding, map( (lambda time : skinny_key_events[ self.keys_history[time] ] if self.keys_history[time] in skinny_key_events else str(self.keys_history[time]) ), sorted(self.keys_history.keys()) )
+        
         else:
             print PRINT_DELIMETER
-            if self.call_errors > 0 and self.call_errors <= ErrorType2.MaxCritical:
-                print "****** CALL ERROR (crititical) ******"
-            #print 'CallInfo: [%s] line = %s, parse_state = %s, call_type = %s' % (self.callid, self.line, self.parse_state, self.call_type)
-            
+
             print "[ %s ] line: %s, call type: %s, pstates: %s" % (
                 self.callid, 
                 self.line, 
                 skinny_call_type[self.call_type],
                 map( (lambda pstate : "".join(parse_states[pstate])), self.pstates_history )
             )
+            if self.call_errors > 0:
+                if self.call_errors <= ErrorType2.MaxCritical:
+                    print "****** CALL ERROR (crititical) ******"
+                print '[ *** %s *** ]' % ErrorType2.str(self.call_errors)
+
             print "[ %s ]" % SkinnyCallAttrs.str(self.call_attrs)
 
             print '[%s - %s]' % (datetime.datetime.fromtimestamp(self.st_time), datetime.datetime.fromtimestamp(self.end_time))
@@ -253,9 +323,9 @@ class CallInfo(JsonSerializable, Ownable, MediaEndpoint):
             print map( (lambda time : skinny_key_events[ self.keys_history[time] ] if self.keys_history[time] in skinny_key_events else str(self.keys_history[time]) ), sorted(self.keys_history.keys()) )
 
             if len(self.rtp_flows.keys()) > 0:
-                print "RTP:"
-                for rtp_info in self.rtp_flows.values():
-                    print '\t', rtp_info
+                print "RTP flows:"
+                for ppid in sorted(self.rtp_flows.keys()):
+                    print '\t', self.rtp_flows[ppid]
 
             # if self.transfer_vs != None:
             #   if self.call_type == SkinnyCallType.INBOUND_CALL:
@@ -263,9 +333,11 @@ class CallInfo(JsonSerializable, Ownable, MediaEndpoint):
             #   elif self.call_type == SkinnyCallType.OUTBOUND_CALL:
             #       print 'assigned transfer: %s' % self.transfer_vs
 
-    #def show_rtp_stats(self):
-        if self.statistics_res:
-            print "RTP stats:\n\t", self.statistics_res
+        if len(self.rtp_stats) > 0:
+            print "RTP stats:"
+            for stat_res in self.rtp_stats.values():
+                print '\t', stat_res
+
 
         return self.call_errors
 

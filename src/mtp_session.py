@@ -36,6 +36,8 @@ class RelayPoint(JsonSerializable, Ownable, MediaEndpoint):
 
 
     def __str__(self):
+        ### print self.conf_id
+        ### print self.rtp_flows.keys()
         res_str = "[conf.: %s] [%s]" % (self.conf_id, datetime.datetime.fromtimestamp(self.st_time))
         if len(self.rtp_flows.values()) > 0:
             res_str += "\n"
@@ -174,6 +176,7 @@ class MTPSessionIterator(SessionIterator, SessionHandler):
             if rtp_flow:
                 rtp_flow.flags |= RtpFlowFlags.LocalConfirmed
                 rtp_flow.local = (sub_msg.remote, sub_msg.port)
+                rtp_flow.set_st_timestamp(pkt_time)
 
 
     # def __process__0x0154__start_media_transmission_ack(self, msg, fdir, pkt_time):
@@ -189,7 +192,7 @@ class MTPSessionIterator(SessionIterator, SessionHandler):
     #         rtp_flow = call_info.get_rtp_flow(sub_msg.passthru)
     #         rtp_flow.flags |= RtpFlowFlags.RemoteConfirmed
     #         rtp_flow.local_orig = (sub_msg.remote, sub_msg.port)
-
+    #         rtp_flow.set_st_timestamp(pkt_time)
 
     #
     # from CCM, Dir.DIR_REPLY
@@ -215,6 +218,8 @@ class MTPSessionIterator(SessionIterator, SessionHandler):
                 
                 rtp_flow.flags |= RtpFlowFlags.Local
                 rtp_flow.remote_orig = (sub_msg.remote, sub_msg.remotePortNumber)
+                rtp_flow.set_st_timestamp(pkt_time)
+                rtp_flow.local_rate = sub_msg.rate # recv rate
 
 
     def __process__0x008A__start_media_transmission(self, msg, fdir, pkt_time):
@@ -232,6 +237,8 @@ class MTPSessionIterator(SessionIterator, SessionHandler):
             if rtp_flow:
                 rtp_flow.flags |= RtpFlowFlags.Remote
                 rtp_flow.remote = (sub_msg.remote, sub_msg.port)
+                rtp_flow.set_st_timestamp(pkt_time)
+                rtp_flow.remote_rate = sub_msg.rate # send rate
 
 
     def __process__0x0106__close_receive_channel(self, msg, fdir, pkt_time):
@@ -248,6 +255,7 @@ class MTPSessionIterator(SessionIterator, SessionHandler):
 
             if rtp_flow:
                 rtp_flow.flags |= RtpFlowFlags.LocalClosed
+                rtp_flow.set_end_timestamp(pkt_time)
 
 
     def __process__0x008B__stop_media_transmission(self, msg, fdir, pkt_time):
@@ -264,6 +272,24 @@ class MTPSessionIterator(SessionIterator, SessionHandler):
 
             if rtp_flow:
                 rtp_flow.flags |= RtpFlowFlags.RemoteClosed
+                rtp_flow.set_end_timestamp(pkt_time)
+
+
+    def __process__0x002A__media_transmission_failure(self, msg, fdir, pkt_time):
+
+        self._test_no_raw_layer(msg)
+
+        sub_msg = msg[SkinnyMessageMediaTransmissionFailure]
+        #sub_msg.show()
+
+        rp = self._context.get_relay_point(sub_msg.conference, False)[0]
+
+        if rp:           
+            rtp_flow = rp.get_rtp_flow(sub_msg.passthru)
+
+            if rtp_flow:
+                rtp_flow.flags |= RtpFlowFlags.RemoteFailure
+                rtp_flow.set_end_timestamp(pkt_time)
 
 
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #

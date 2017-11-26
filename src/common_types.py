@@ -76,14 +76,31 @@ skinny_session_flags = {
 # layer-3
 class ErrorType2(BitEnum):
     No                      = 0
+
+    #
+    # critical errors - can't continue session processing (turn on bypass mode)
+    #
     NotSupportedProto       = 1 << 0 
     MaxCritical = NotSupportedProto
 
+    #
     # non-critical errors
+    #
     OutOfState              = 1 << 1 
-    SoftKeyOutOfState       = 1 << 2  # EndCall after call closed, multiple EndCalls (session hangup?)
-    SuspictConnectionStats  = 1 << 3  # Zero send/recv pkts/bytes
-    UnknownSoftKey          = 1 << 4
+    
+    RtpOneWayMediaNoRecv    = 1 << 2
+    RtpOneWayMediaNoSend    = 1 << 3
+    RtpNoMedia              = 1 << 4
+    RtpMediaFailure         = 1 << 5
+
+    SoftKeyOutOfState       = 1 << 6  # EndCall after call closed, multiple EndCalls (session hangup?)
+    SoftKeyUnknown          = 1 << 7  # not bound to any call
+    # sequence of same SoftKey - session hangup (lost link with UCM?)
+    SoftKeyRepeat           = 1 << 8 # never seen from Phones
+
+    # no getting KeepAlive/KeepAliveAck within specified interval (lost link with UCM?)
+    KeepAliveLost           = 1 << 9
+
 
     @staticmethod
     def str(attrs):
@@ -94,11 +111,20 @@ class ErrorType2(BitEnum):
 
 skinny_error_types = {
     ErrorType2.No : "",
-    ErrorType2.NotSupportedProto         : "NotSupportedProto",
-    ErrorType2.OutOfState                : "OutOfState",
-    ErrorType2.SoftKeyOutOfState         : "SoftKeyOutOfState",
-    ErrorType2.SuspictConnectionStats    : "SuspictConnectionStats",
-    ErrorType2.UnknownSoftKey            : "UnknownSoftKey",
+    ErrorType2.NotSupportedProto    : "NotSupportedProto",
+    
+    ErrorType2.OutOfState           : "OutOfState",
+
+    ErrorType2.RtpOneWayMediaNoRecv : "RtpOneWayMediaNoRecv",
+    ErrorType2.RtpOneWayMediaNoSend : "RtpOneWayMediaNoSend",
+    ErrorType2.RtpNoMedia           : "RtpNoMedia",
+    ErrorType2.RtpMediaFailure      : "RtpMediaFailure",
+    
+    ErrorType2.SoftKeyOutOfState    : "SoftKeyOutOfState",
+    ErrorType2.SoftKeyUnknown       : "SoftKeyUnknown",
+    ErrorType2.SoftKeyRepeat        : "SoftKeyRepeat",
+
+    ErrorType2.KeepAliveLost        : "KeepAliveLost",
 }
 
 

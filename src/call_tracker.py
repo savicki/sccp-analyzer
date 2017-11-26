@@ -33,12 +33,15 @@ def get_sibling_flows(flow, owner):
 
 """
     Phone session         MTP session             MTP session             Phone session
+         ^                      ^                       ^                       ^
          |                      |                       |                       |
      CallInfo               RelayPoint              RelayPoint               CallInfo
              \-- RTP flow --/        \-- RTP flow --/        \-- RTP flow --/
 """
 def walk_flows(rtp_flows):
     for rtpf in rtp_flows:
+        if rtpf.is_two_way() == False:
+            continue
         print rtpf
         
         reply_key = rtpf.get_inv_key()
@@ -56,7 +59,7 @@ def walk_flows(rtp_flows):
                 if isinstance(owner, CallInfo):
                     print '\t\\'
                     owner.dump_media_endpoint('Final endpoint:')
-                    print '\nTrace completed'
+                    print '\nTrace completed\n'
 
                 elif isinstance(owner, RelayPoint):
                     owner.dump_media_endpoint('RelayPoint')
@@ -68,7 +71,7 @@ def walk_flows(rtp_flows):
 
         else:
             print 'Trace lost - no end found for RTP flow above'
-            print '\nTrace completed'
+            print '\nTrace completed\n'
 
 def trace_call(callid):
     print '\nTracing call [%s]...' % callid
@@ -93,11 +96,11 @@ def trace_call(callid):
 parser = argparse.ArgumentParser()
 parser.add_argument('-f', '--json-file', help='filename  to read and parse json from', required=True)
 parser.add_argument('-m', '--mode', help='mode', required=True)
-# mode 'search'
+# 'search' mode
 parser.add_argument('-s-filt', '--session-filter', help='session filter', default='')
 parser.add_argument('-c-filt', '--call-filter', help='call filter', default='')
 parser.add_argument('-s-calls', '--show-calls', help='whether to show calls WHEN call filter not specified', required=False, type=str, default='yes')
-# mode 'trace'
+# 'trace' mode
 parser.add_argument('-tc', '--trace-call', help='call id to trace', required=False, type=int, default=0)
 
 # 
@@ -149,17 +152,26 @@ if __name__ == "__main__":
                 eval_session_res = eval(parse_expression(args.session_filter, 'session')) if args.session_filter else True
 
                 if eval_session_res:
-                    stat_srch_phone_sessions += 1
-                    session.show_session_details()
+                    session_shown = False
 
+                    # go deep
                     if args.call_filter or show_calls_bydef:
                         for call in session.calls.values():
                             eval_call_res = eval(parse_expression(args.call_filter, 'call')) if args.call_filter else show_calls_bydef
 
                             if eval_call_res:
+                                if not session_shown:
+                                    stat_srch_phone_sessions += 1
+                                    session.show_session_details()
+                                    session_shown = True
+
                                 stat_srch_tot_calls += 1
                                 call.show_call_details()
-
+                    else:
+                        stat_srch_phone_sessions += 1
+                        session.show_session_details()
+                        session_shown = True
+                   
         elif isinstance(session, MTPSession):
             session_cls = SkinnySessionFlags.MTP
 
