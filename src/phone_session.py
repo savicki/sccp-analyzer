@@ -55,6 +55,7 @@ def create_call_type_classifier():
 # TODO: use case "show all skinny sessions from Xxx"
 class PhoneSession(SessionBase, JsonSerializable, RtpFlowsContainer):
     def __init__(self, data = None):
+        SessionBase.__init__(self)
 
         self.__call_classifier = create_call_type_classifier()
 
@@ -240,8 +241,9 @@ class PhoneSession(SessionBase, JsonSerializable, RtpFlowsContainer):
             raise ValueError("already registered")
 
         self.register_info["info"] = info
-
         self.register_info["protocol"]["requested"] = info["protocol_ver"]
+
+        self.s_info.in_mdl = False
 
 
     def get_register_info_all(self):
@@ -321,6 +323,12 @@ class PhoneSession(SessionBase, JsonSerializable, RtpFlowsContainer):
     def show_session_details(self):
         print PRINT_DELIMETER
 
+        print '[%s - %s] [ %s ] [ %s ] \n' % (
+            datetime.datetime.fromtimestamp(self.s_info.st_time),
+            datetime.datetime.fromtimestamp(self.s_info.end_time),
+            self.s_info.filename,
+            'in middle' if self.s_info.in_mdl else 'from head'
+        )
         info = self.register_info["info"]
         if info != None:
             protocol = self.register_info["protocol"]
@@ -566,6 +574,10 @@ class PhoneSessionIterator(SessionIterator, SessionHandler):
         stop_processing = False
         # print "[PhoneSessionIterator::process_msg] msg: %s, len: %s + 12 bytes, ver.: %s, dir: %s, time: %s" % (
         #     hex(sccp_msg.msg), sccp_msg.len, sccp_msg.res, fdir, pkt_time)
+        
+        if not self._context.s_info.st_time: 
+            self._context.s_info.st_time = pkt_time
+        self._context.s_info.end_time = pkt_time
 
         if self._context.is_bypass_on() == False:
             if self._handlers.has_key(sccp_msg.msg):

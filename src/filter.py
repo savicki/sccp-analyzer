@@ -217,7 +217,6 @@ _fields_mapper = {
             },
             'names' :       Array( Str('session.register_info["name"].values()') ),
             'numbers' :     Array( Str('session.register_info["number"].values()') )
-            #'filename' :    Str('session["filename"]')
         },
         'summary': {
             'soft_keys'     : Array( Num('session.calls_summary["soft_keys"]') ),
@@ -225,6 +224,14 @@ _fields_mapper = {
             'call_errors'   : Array( BitNum('session.session_errors') ),
             'call_attrs'    : Array( BitNum('session.calls_summary["call_attrs"]') ),
             'call_states'   : Array( Num('session.calls_summary["call_states"]') )
+        },
+        'info' : {
+            'filename' :    Str('session.s_info.filename'),
+            'time' : {
+                'start' :   Num('session.s_info.st_time'),
+                'end' :     Num('session.s_info.end_time')
+            },
+            'middle' :      Num('session.s_info.in_mdl')
         }
     },
     'call': {

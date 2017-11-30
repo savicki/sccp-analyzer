@@ -46,9 +46,8 @@ def iterate_session(msg_flow, iterator, context = None):
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 
 
-def process_pcap(filename):
-
-    pcap = rdpcap(filename)
+def process_pcap(filepath, filename):
+    pcap = rdpcap(filepath)
 
     pcap_sessions = pcap.sessions(hash_session)
     pcap_sccp_sessions = []
@@ -83,9 +82,10 @@ def process_pcap(filename):
             inspect_iter = None
         
         if inspect_iter:
-            sccp_errors = iterate_session( msg_session, inspect_iter, sccp_session )
-            # TODO: 
-            # print sccp_errors
+            sccp_session.s_info.filename = filename
+            sccp_errors = iterate_session(msg_session, inspect_iter, sccp_session)
+            
+
             if sccp_errors != ErrorType2.No:
                 sys.stderr.write( "**** session has errors: %s (%s)\n" % (
                     hex(sccp_errors), ErrorType2.str(sccp_errors)) )
@@ -140,8 +140,7 @@ if __name__ == "__main__":
             print "skip %s" % filename
             continue
 
-        fullpath = os.path.join(args.dir, filename)
-        sccp_sessions_from_pcap = process_pcap(fullpath)
+        sccp_sessions_from_pcap = process_pcap( os.path.join(args.dir, filename), filename )
         
         if len(sccp_sessions_from_pcap) > 0:
             sccp_sessions += sccp_sessions_from_pcap

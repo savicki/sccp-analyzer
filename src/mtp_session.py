@@ -60,6 +60,7 @@ class RelayPoint(JsonSerializable, Ownable, MediaEndpoint):
 
 class MTPSession(SessionBase, JsonSerializable):
     def __init__(self, data = None):
+        SessionBase.__init__(self)
 
         if data:
             self.__dict__ = data

@@ -133,7 +133,7 @@ skinny_error_types = {
 
 class SessionBase(object):
     def __init__(self):
-        pass
+        self.s_info = SessionInfo()
 
 
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # 
@@ -193,6 +193,23 @@ class JsonSerializable(object):
     @staticmethod
     def get_public_fields(dict_arg):
         return dict([(k, v) for k, v in dict_arg.iteritems() if k.startswith('_') == False ])
+
+
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # 
+
+
+class SessionInfo(JsonSerializable):
+    def __init__(self, data = None):
+
+        if data:
+            self.__dict__ = data
+
+        else:
+            self.in_mdl = True
+            self.filename = ''
+            # first, last msg
+            self.st_time = None
+            self.end_time = None
 
 
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
