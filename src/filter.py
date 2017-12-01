@@ -12,11 +12,13 @@ from json_serialization import SkinnySessionsJsonEncoder, SkinnySessionsJsonDeco
 
 class Type(object):
     _ops = []
-    _agr_ops = {}
+    _arg_ops = {}
+    _str_type = ''
+
 
     def __init__(self, field):
         self._field = field
-        self._base_type = None # always so for ordinal types
+        self._base_type = None # always 'None' for ordinal types
 
     def get_field(self):
         return self._field
@@ -28,9 +30,9 @@ class Type(object):
         return op in self._ops
 
     def validate_agr_operator(self, agr_op):
-        # print type(self), self._agr_ops.keys()
-        if agr_op in self._agr_ops.keys():
-            agr_op_info = self._agr_ops[agr_op]
+        # print type(self), self._arg_ops.keys()
+        if agr_op in self._arg_ops.keys():
+            agr_op_info = self._arg_ops[agr_op]
             
             agr_type = agr_op_info[0]
             agr_fmt = agr_op_info[1][self.get_base_type()]
@@ -50,9 +52,16 @@ class Type(object):
 
         return expr
 
+    def type2str(self):
+        if self._base_type:
+            return '%s(%s)' % (self._str_type, self._base_type._str_type)
+        else:
+            return self._str_type
+
 
 class Num(Type):
     _ops = ['==', '!=', '>', '<', '>=', '<=', '&']
+    _str_type = 'num'
 
     def __init__(self, exp):
         Type.__init__(self, exp)
@@ -90,11 +99,13 @@ class Num(Type):
 
 
 class BitNum(Num):
+    _str_type = 'bit num'
     pass
 
 
 class Str(Type):
     _ops = ['contains', '==', '!=']
+    _str_type = 'string'
 
     def __init__(self, exp):
         Type.__init__(self, exp)
@@ -118,13 +129,14 @@ class Str(Type):
 
 class Array(Type):
     _ops = ['has']
-    _agr_ops = {
+    _arg_ops = {
         'len': (Num, {
             Num : 'len(%s)',
             BitNum : 'len([bit for bit in range(0, 32) if ((1 << bit) & %s) != 0])',
             Str : 'len(%s)'
         })
     }
+    _str_type = 'array'
 
     def __init__(self, base_type):
         Type.__init__(self, "<no field for containers>")
@@ -301,6 +313,24 @@ def _convert_field(scope, fields):
 
     # print '\'%s\' => \'%s\'' % (subquery, next_map.get_field())
     return next_map
+
+
+def _walk_fields_mapper_keys(str_res, obj, padding = ''):
+    if isinstance(obj, dict):
+        str_res += '\n'
+
+        for k in sorted(obj.keys()):
+            str_res +=  '%s %s' % (padding, k)
+            str_res = _walk_fields_mapper_keys(str_res, obj[k], padding + '   ')
+    
+    elif isinstance(obj, Type):
+        str_res += ' : %s\n' % obj.type2str()
+
+    return str_res
+
+def stringify_filter_map():
+    str_res = _walk_fields_mapper_keys('', _fields_mapper)
+    return str_res
 
 
 def parse_single_expression(filter_str, scope):

@@ -327,7 +327,7 @@ class PhoneSession(SessionBase, JsonSerializable, RtpFlowsContainer):
             datetime.datetime.fromtimestamp(self.s_info.st_time),
             datetime.datetime.fromtimestamp(self.s_info.end_time),
             self.s_info.filename,
-            'in middle' if self.s_info.in_mdl else 'from head'
+            'in middle' if self.s_info.in_mdl else 'from beginning'
         )
         info = self.register_info["info"]
         if info != None:

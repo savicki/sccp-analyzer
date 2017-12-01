@@ -9,7 +9,7 @@ from phone_session import PhoneSession, PhoneSessionIterator
 from mtp_session import MTPSession, MTPSessionIterator, RelayPoint
 from json_serialization import SkinnySessionsJsonEncoder, SkinnySessionsJsonDecoder
 
-from filter import parse_expression
+from filter import parse_expression, stringify_filter_map
 
 
 # list of sessions
@@ -93,7 +93,11 @@ def trace_call(callid):
 
 
 
-parser = argparse.ArgumentParser()
+parser = argparse.ArgumentParser(
+    description='Convert sccp .pcaps (captured with "tcp.port eq 2000" filter) to json calls database, index these calls, search and trace by call-id, dump sessions',
+    formatter_class=argparse.RawTextHelpFormatter,
+    epilog='Filter tree:\n%s' % stringify_filter_map())
+
 parser.add_argument('-f', '--json-file', help='filename  to read and parse json from', required=True)
 parser.add_argument('-m', '--mode', help='mode', required=True)
 # 'search' mode
@@ -120,8 +124,8 @@ if __name__ == "__main__":
     
     elif args.mode == 'search':
         show_calls_bydef = args.show_calls.lower() == 'yes'
-        if args.session_filter.strip() == '' : args.session_filter = None
-        if args.call_filter.strip() == '' : args.call_filter = None
+        session_expr = parse_expression(args.session_filter, 'session') if args.session_filter.strip() != '' else None
+        call_expr = parse_expression(args.call_filter, 'call') if args.call_filter.strip() != '' else None
 
 
     ### print args
@@ -149,7 +153,7 @@ if __name__ == "__main__":
             stat_index_phone_sessions += 1
             
             if args.mode == 'search':
-                eval_session_res = eval(parse_expression(args.session_filter, 'session')) if args.session_filter else True
+                eval_session_res = eval(session_expr) if session_expr else True
 
                 if eval_session_res:
                     session_shown = False
@@ -157,7 +161,7 @@ if __name__ == "__main__":
                     # go deep
                     if args.call_filter or show_calls_bydef:
                         for call in session.calls.values():
-                            eval_call_res = eval(parse_expression(args.call_filter, 'call')) if args.call_filter else show_calls_bydef
+                            eval_call_res = eval(call_expr) if call_expr else show_calls_bydef
 
                             if eval_call_res:
                                 if not session_shown:
