@@ -29,7 +29,7 @@ _rtp_flows_partial_map = { }
 _phone_map = { }
 
 
-def get_sibling_flows(flow, owner):
+def _get_sibling_flows(flow, owner):
     return [s for s in owner.rtp_flows.values() if s != flow] if owner else []
 
 
@@ -40,7 +40,7 @@ def get_sibling_flows(flow, owner):
      CallInfo               RelayPoint              RelayPoint               CallInfo
              \-- RTP flow --/        \-- RTP flow --/        \-- RTP flow --/
 """
-def walk_flows(rtp_flows):
+def _walk_flows(rtp_flows):
     for rtpf in rtp_flows:
         if rtpf.is_two_way() == False:
             continue
@@ -55,7 +55,7 @@ def walk_flows(rtp_flows):
 
             # JoinPair (MTP session) or CallInfo (Phone session)
             owner = reply_rtpf.get_owner()
-            next_hop_flows = get_sibling_flows(reply_rtpf, owner)
+            next_hop_flows = _get_sibling_flows(reply_rtpf, owner)
 
             if len(next_hop_flows) == 0: 
                 if isinstance(owner, CallInfo):
@@ -69,13 +69,14 @@ def walk_flows(rtp_flows):
             else:
                 owner.dump_media_endpoint('RelayPoint')
 
-            walk_flows(next_hop_flows)
+            _walk_flows(next_hop_flows)
 
         else:
             print 'Trace lost - no end found for RTP flow above'
             print '\nTrace completed\n'
 
-def trace_call(callid):
+
+def _trace_call(callid):
     print '\nTracing call [%s]...' % callid
 
     if _call_map.has_key(callid):
@@ -91,8 +92,17 @@ def trace_call(callid):
             call.dump_media_endpoint('\nStart endpoint:')
             print '\t/'
 
-            walk_flows(call.rtp_flows.values())
+            _walk_flows(call.rtp_flows.values())
 
+
+def _build_expression(from_str, scope, strict_scope = False):
+    expr = None
+    dummy = True
+
+    if from_str.strip() != '':
+        expr, dummy = parse_expression(from_str, scope, strict_scope = strict_scope)
+
+    return expr if not dummy else None
 
 
 parser = argparse.ArgumentParser(
@@ -100,14 +110,13 @@ parser = argparse.ArgumentParser(
     formatter_class=argparse.RawTextHelpFormatter,
     epilog='Filter tree:\n%s' % stringify_filter_map())
 
-parser.add_argument('-f', '--json-file', help='filename  to read and parse json from', required=True)
+parser.add_argument('-f', '--file', help='filename  to read and parse json from', required=True)
 parser.add_argument('-m', '--mode', help='mode', required=True)
 # 'search' mode
-parser.add_argument('-s-filt', '--session-filter', help='session filter', default='')
-parser.add_argument('-c-filt', '--call-filter', help='call filter', default='')
-parser.add_argument('-s-calls', '--show-calls', help='whether to show calls WHEN call filter not specified', required=False, type=str, default='yes')
+parser.add_argument('-q', '--query', help='query', default='')
+parser.add_argument('-s-calls', '--show-calls', help='whether to show calls when call-level filter not specified', required=False, type=str, default='yes')
 # 'trace' mode
-parser.add_argument('-tc', '--trace-call', help='call id to trace', required=False, type=int, default=0)
+parser.add_argument('-t', '--trace-call', help='call id to trace', required=False, type=int, default=0)
 
 # 
 # Valid samples:
@@ -126,16 +135,16 @@ if __name__ == "__main__":
     
     elif args.mode == 'search':
         show_calls_bydef = args.show_calls.lower() == 'yes'
-        session_expr = parse_expression(args.session_filter, 'session') if args.session_filter.strip() != '' else None
-        call_expr = parse_expression(args.call_filter, 'call') if args.call_filter.strip() != '' else None
-
+        session_expr = _build_expression(args.query, 'session')
+        call_expr   = _build_expression(args.query, 'call')
+        phone_expr  = _build_expression(args.query, 'phone')
 
     ### print args
 
     # print args # V-1
 
-    with open(args.json_file, 'r') as json_file:
-        json_str = json_file.read()
+    with open(args.file, 'r') as file:
+        json_str = file.read()
 
     sccp_sessions = json.loads(json_str, cls=SkinnySessionsJsonDecoder)
     # index stats
@@ -162,7 +171,7 @@ if __name__ == "__main__":
                     session_shown = False
 
                     # go deep
-                    if len(session.calls) > 0 and (args.call_filter or show_calls_bydef):
+                    if len(session.calls) > 0 and (call_expr or show_calls_bydef):
                         for call in session.calls.values():
                             eval_call_res = eval(call_expr) if call_expr else show_calls_bydef
 
@@ -245,6 +254,7 @@ if __name__ == "__main__":
 
                 sessions_slot.insert(ind, session)
 
+
     if args.mode == 'search':
         print '\nSearch summary: phone sessions: %s, total calls: %s' % (
             stat_srch_phone_sessions, stat_srch_tot_calls)
@@ -253,4 +263,4 @@ if __name__ == "__main__":
         print '\nIndex summary: phone sessions: %s, total calls: %s, rtp flows: %s (total: %s)' % (
             stat_index_phone_sessions, stat_index_tot_calls, stat_index_rtp_flows_duplex, stat_index_rtp_flows_tot)
 
-        trace_call( str(args.trace_call) )
+        _trace_call( str(args.trace_call) )

@@ -3,84 +3,84 @@
 # search sessions
 #
 
-python call_tracker.py -f calls_db.json -m 'search' -s-filt 'session.owner.names has "Savi"'  -s-calls 'yes'
-python call_tracker.py -f calls_db.json -m 'search' -s-filt 'session.owner.names has  "Savicki", "Paul"'  -s-calls 'no'
+python call_tracker.py -f calls_db.json -m 'search' -q 'session.owner.names has "Savi"'  -s-calls 'yes'
+python call_tracker.py -f calls_db.json -m 'search' -q 'session.owner.names has  "Savicki", "Paul"'  -s-calls 'no'
 
 # but this return false positives
-python call_tracker.py -f calls_db.json -m 'search' -s-filt 'session.owner.numbers.len > 0' -c-filt '' -s-calls 'yes'
-python call_tracker.py -f calls_db.json -m 'search' -s-filt 'session.owner.numbers has "5120"' -c-filt '' -s-calls 'no'
+python call_tracker.py -f calls_db.json -m 'search' -q 'session.owner.numbers.len > 0' -s-calls 'yes'
+python call_tracker.py -f calls_db.json -m 'search' -q 'session.owner.numbers has "5120"' -s-calls 'no'
 
-python call_tracker.py -f calls_db.json -m 'search' -s-filt 'session.owner.protocol.used == 18'  -s-calls 'no'
-python call_tracker.py -f calls_db.json -m 'search' -s-filt 'session.owner.protocol.used == 0x12'  -s-calls 'no'
-python call_tracker.py -f calls_db.json -m 'search' -s-filt 'session.owner.protocol.used > 0x10'  -s-calls 'no'
+python call_tracker.py -f calls_db.json -m 'search' -q 'session.owner.protocol.used == 18' -s-calls 'no'
+python call_tracker.py -f calls_db.json -m 'search' -q 'session.owner.protocol.used == 0x12' -s-calls 'no'
+python call_tracker.py -f calls_db.json -m 'search' -q 'session.owner.protocol.used > 0x10' -s-calls 'no'
 
 
 #
 # search sessions by summaries
 #
 
-python call_tracker.py -f calls_db.json -m 'search' -s-filt 'session.summary.call_errors.len > 0'  -s-calls 'no'
-python call_tracker.py -f calls_db.json -m 'search' -s-filt 'session.summary.call_errors.len == 0'  -s-calls 'no'
-python call_tracker.py -f calls_db.json -m 'search' -s-filt 'session.summary.call_errors has ErrorType2.UnknownSoftKey'  -s-calls 'no'
-python call_tracker.py -f calls_db.json -m 'search' -s-filt 'session.summary.call_errors has 1,2,3'  -s-calls 'no'
-python call_tracker.py -f calls_db.json -m 'search' -s-filt 'session.summary.call_errors has 1+2+4'  -s-calls 'no'
+python call_tracker.py -f calls_db.json -m 'search' -q 'session.summary.call_errors.len > 0'  -s-calls 'no'
+python call_tracker.py -f calls_db.json -m 'search' -q 'session.summary.call_errors.len == 0'  -s-calls 'no'
+python call_tracker.py -f calls_db.json -m 'search' -q 'session.summary.call_errors has ErrorType2.UnknownSoftKey'  -s-calls 'no'
+python call_tracker.py -f calls_db.json -m 'search' -q 'session.summary.call_errors has 1,2,3'  -s-calls 'no'
+python call_tracker.py -f calls_db.json -m 'search' -q 'session.summary.call_errors has 1+2+4'  -s-calls 'no'
 
-python call_tracker.py -f calls_db.json -m 'search' -s-filt 'session.summary.call_states has SkinnyCallStates.Connected' -c-filt '' -s-calls 'yes'
-python call_tracker.py -f calls_db.json -m 'search' -s-filt 'session.summary.call_states has SkinnyCallStates.Connected + SkinnyCallStates.RingIn' -c-filt '' -s-calls 'yes'
+python call_tracker.py -f calls_db.json -m 'search' -q 'session.summary.call_states has SkinnyCallStates.Connected' -s-calls 'yes'
+python call_tracker.py -f calls_db.json -m 'search' -q 'session.summary.call_states has SkinnyCallStates.Connected + SkinnyCallStates.RingIn'  -s-calls 'yes'
 
-python call_tracker.py -f calls_db.json -m 'search' -s-filt 'session.summary.call_attrs has SkinnyCallAttrs.P2P' -c-filt '' -s-calls 'no'
+python call_tracker.py -f calls_db.json -m 'search' -q 'session.summary.call_attrs has SkinnyCallAttrs.P2P' -s-calls 'no'
 
-python call_tracker.py -f calls_db.json -m 'search' -s-filt 'session.summary.call_types has SkinnyCallType.INBOUND_CALL' -c-filt '' -s-calls 'yes'
-python call_tracker.py -f calls_db.json -m 'search' -s-filt 'session.summary.call_types.len > 0' -c-filt '' -s-calls 'yes'
+python call_tracker.py -f calls_db.json -m 'search' -q 'session.summary.call_types has SkinnyCallType.INBOUND_CALL' -s-calls 'yes'
+python call_tracker.py -f calls_db.json -m 'search' -q 'session.summary.call_types.len > 0' -s-calls 'yes'
 
-python call_tracker.py -f calls_db.json -m 'search' -s-filt 'session.summary.soft_keys has SkinnyKeyEvents.EndCall' -c-filt '' -s-calls 'yes'
+python call_tracker.py -f calls_db.json -m 'search' -q 'session.summary.soft_keys has SkinnyKeyEvents.EndCall' -s-calls 'yes'
 
-python call_tracker.py -f calls_db.json -m 'search' -s-filt 'session.info.filename == "xxx.pcap"' -s-calls 'no'
+python call_tracker.py -f calls_db.json -m 'search' -q 'session.info.filename == "xxx.pcap"' -s-calls 'no'
 
-python call_tracker.py -f calls_db.json -m 'search' -s-filt 'session.info.filename contains "10.0.101.204_54336_10.0.3.3_2000_1505200105.pcap"' -s-calls 'no'
+python call_tracker.py -f calls_db.json -m 'search' -q 'session.info.filename contains "10.0.101.204_54336_10.0.3.3_2000_1505200105.pcap"' -s-calls 'no'
 
 
 #
 # search calls
 #
 
-python call_tracker.py -f calls_db.json -m 'search' -s-filt '' -c-filt 'call.states has SkinnyCallStates.Connected' -s-calls 'yes'
+python call_tracker.py -f calls_db.json -m 'search' -q 'call.states has SkinnyCallStates.Connected' -s-calls 'yes'
 
-python call_tracker.py -f calls_db.json -m 'search' -s-filt '' -c-filt 'call.rtp.flows.len == 1' 
-python call_tracker.py -f calls_db.json -m 'search' -s-filt '' -c-filt 'call.rtp.flows.len > 1' 
+python call_tracker.py -f calls_db.json -m 'search' -q 'call.rtp.flows.len == 1' 
+python call_tracker.py -f calls_db.json -m 'search' -q 'call.rtp.flows.len > 1' 
 
-python call_tracker.py -f calls_db.json -m 'search' -s-filt '' -c-filt '(call.rtp.flows.len > 0) && (call.callid == 22652546)'
+python call_tracker.py -f calls_db.json -m 'search' -q '(call.rtp.flows.len > 0) && (call.callid == 22652546)'
 
-python call_tracker.py -f calls_db.json -m 'search' -c-filt 'call.rtp.flows_duplex.len > 1'
-python call_tracker.py -f calls_db.json -m 'search' -c-filt 'call.rtp.flows_oneway.len > 1'
+python call_tracker.py -f calls_db.json -m 'search' -q 'call.rtp.flows_duplex.len > 1'
+python call_tracker.py -f calls_db.json -m 'search' -q 'call.rtp.flows_oneway.len > 1'
 
-python call_tracker.py -f calls_db.json -m 'search' -c-filt '(call.rtp.flows_duplex.len > 1) && ((call.soft_keys has SkinnyKeyEvents.Transfer) == False)'
+python call_tracker.py -f calls_db.json -m 'search' -q '(call.rtp.flows_duplex.len > 1) && ((call.soft_keys has SkinnyKeyEvents.Transfer) == False)'
 
-python call_tracker.py -f calls_db.json -m 'search' -c-filt 'call.rtp.stats.len > 0'
-python call_tracker.py -f calls_db.json -m 'search' -c-filt 'call.attrs has SkinnyCallAttrs.NoRtpStats'
+python call_tracker.py -f calls_db.json -m 'search' -q 'call.rtp.stats.len > 0'
+python call_tracker.py -f calls_db.json -m 'search' -q 'call.attrs has SkinnyCallAttrs.NoRtpStats'
 
-python call_tracker.py -f calls_db.json -m 'search' -c-filt '(call.errors has ErrorType2.RtpOneWayMediaNoRecv) && ((call.soft_keys has SkinnyKeyEvents.Transfer) == False)' --show-calls 'yes'
+python call_tracker.py -f calls_db.json -m 'search' -q '(call.errors has ErrorType2.RtpOneWayMediaNoRecv) && ((call.soft_keys has SkinnyKeyEvents.Transfer) == False)' --show-calls 'yes'
 
-python call_tracker.py -f calls_db.json -m 'search' -c-filt '(call.rtp.dur_min > 10) && (call.rtp.dur_max < 120)'
+python call_tracker.py -f calls_db.json -m 'search' -q '(call.rtp.dur_min > 10) && (call.rtp.dur_max < 120)'
 
-python call_tracker.py -f calls_db.json -m 'search' -c-filt '(call.errors has ErrorType2.RtpOneWayMediaNoRecv) && ((call.soft_keys has SkinnyKeyEvents.Transfer) == False) && (call.rtp.stats.len == 1)'
+python call_tracker.py -f calls_db.json -m 'search' -q '(call.errors has ErrorType2.RtpOneWayMediaNoRecv) && ((call.soft_keys has SkinnyKeyEvents.Transfer) == False) && (call.rtp.stats.len == 1)'
 
-python call_tracker.py -f calls_db.json -m 'search' -c-filt '(call.errors has ErrorType2.RtpOneWayMediaNoRecv) && ((call.soft_keys has SkinnyKeyEvents.Transfer) == False) && (call.rtp.stats.len == 1) && (call.attrs has SkinnyCallAttrs.OneWayMediaSetup) == False && (call.rtp.dur_min > 2)'
+python call_tracker.py -f calls_db.json -m 'search' -q '(call.errors has ErrorType2.RtpOneWayMediaNoRecv) && ((call.soft_keys has SkinnyKeyEvents.Transfer) == False) && (call.rtp.stats.len == 1) && (call.attrs has SkinnyCallAttrs.OneWayMediaSetup) == False && (call.rtp.dur_min > 2)'
 
 
 #
 # sessions + calls
 #
 
-python call_tracker.py -f calls_db.json -m 'search' -s-filt 'session.owner.numbers.len > 1' -c-filt 'call.states has SkinnyCallStates.Busy' -s-calls 'no'
+python call_tracker.py -f calls_db.json -m 'search' -q '(session.owner.numbers.len > 1) && (call.states has SkinnyCallStates.Busy)' -s-calls 'no'
 
-python call_tracker.py -f calls_db.json -m 'search' -s-filt 'session.summary.call_errors.len > 0' -c-filt 'call.errors.len > 0'
-python call_tracker.py -f calls_db.json -m 'search' -s-filt 'session.summary.call_errors.len > 0' -c-filt 'call.attrs has SkinnyCallAttrs.OneWayMediaSetup'
-python call_tracker.py -f calls_db.json -m 'search' -s-filt 'session.summary.call_errors.len > 0' -c-filt '(call.attrs has SkinnyCallAttrs.OneWayMediaSetup) == False'
-python call_tracker.py -f calls_db.json -m 'search' -s-filt 'session.summary.call_errors.len > 0' -c-filt '(call.attrs has SkinnyCallAttrs.OneWayMediaSetup) == True'
+python call_tracker.py -f calls_db.json -m 'search' -q '(session.summary.call_errors.len > 0) && (call.errors.len > 0)'
+python call_tracker.py -f calls_db.json -m 'search' -q '(session.summary.call_errors.len > 0) && (call.attrs has SkinnyCallAttrs.OneWayMediaSetup)'
+python call_tracker.py -f calls_db.json -m 'search' -q '(session.summary.call_errors.len > 0) && ((call.attrs has SkinnyCallAttrs.OneWayMediaSetup) == False)'
+python call_tracker.py -f calls_db.json -m 'search' -q '(session.summary.call_errors.len > 0) && ((call.attrs has SkinnyCallAttrs.OneWayMediaSetup) == True)'
 
-python call_tracker.py -f calls_db.json -m 'search' -s-filt 'session.summary.call_errors.len > 0' -c-filt 'call.soft_keys has SkinnyKeyEvents.Transfer'
-python call_tracker.py -f calls_db.json -m 'search' -s-filt 'session.summary.call_errors.len > 0' -c-filt 'call.soft_keys has SkinnyKeyEvents.Transfer + SkinnyKeyEvents.Answer'
+python call_tracker.py -f calls_db.json -m 'search' -q '(session.summary.call_errors.len > 0) && (call.soft_keys has SkinnyKeyEvents.Transfer)'
+python call_tracker.py -f calls_db.json -m 'search' -q '(session.summary.call_errors.len > 0) && (call.soft_keys has SkinnyKeyEvents.Transfer + SkinnyKeyEvents.Answer)'
 
 
 #
@@ -161,8 +161,8 @@ python call_tracker.py -f calls_db.json -m 'trace' --trace-call '22744714'
 # pcap parser
 #
 
-python pcap_parser.py -d "c:\\github\\sccp-analyzer\\src\\pcaps\\13_sep_2017\\" -jf calls_db.json -pl 10 >calls_db.log 2>&1
+python pcap_parser.py -d "c:\\github\\sccp-analyzer\\src\\pcaps\\13_sep_2017\\" -jf calls_db.json -pl 10 >calls_db.log 
 python pcap_parser.py -d "c:\\github\\sccp-analyzer\\src\\pcaps\\13_sep_2017\\" -f "10.0.101.235_58095_10.0.3.3_2000_1505125701.pcap" -jf calls_db.json
-python pcap_parser.py -d "c:\\github\\sccp-analyzer\\src\\pcaps\\13_sep_2017\\" -ps "10.0.109.10_51139_10.0.3.3_2000_1505125721.pcap" -pl 1 -jf calls_db.json >calls_db.log 2>&1
+python pcap_parser.py -d "c:\\github\\sccp-analyzer\\src\\pcaps\\13_sep_2017\\" -ps "10.0.109.10_51139_10.0.3.3_2000_1505125721.pcap" -pl 1 -jf calls_db.json >calls_db.log
 
 python pcap_parser.py -d "c:\\github\\sccp-analyzer\\src\\pcaps\\13_sep_2017\\" -f "10.0.107.215_49841_10.0.3.3_2000_1505133586.pcap"

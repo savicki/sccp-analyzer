@@ -334,7 +334,7 @@ def stringify_filter_map():
     return str_res
 
 
-def parse_single_expression(filter_str, scope):
+def parse_single_expression(filter_str, scope, strict_scope = True):
     # print 'filter_str: \'%s\'' % filter_str
 
     parts = [i for i in filter_str.split(' ') if i]
@@ -349,7 +349,11 @@ def parse_single_expression(filter_str, scope):
         raise ValueError('wrong field name \'%s\'' % field_str)
     scope_used = m.group('scope')
     if scope_used != scope:
-        raise ValueError('expected \'%s\' scope, but \'%s\' given' % (scope, scope_used))
+        if strict_scope:
+            raise ValueError('expected \'%s\' scope, but \'%s\' given' % (scope, scope_used))
+        else:
+            return 'True', True # dummy expr
+
     fields = [ i for i in m.group('fields').split('.') if i]
     field_op = m.group('last_field')
 
@@ -378,10 +382,10 @@ def parse_single_expression(filter_str, scope):
     expr = field_type.compose_expr( field_type.get_field(), op_str, value_res[1], value_res[2] )
 
     # 'session.owner.protocol.used' => session["owner"]["protocol"]["used"]
-    return '%s' % expr
+    return '%s' % expr, False
 
 
-def parse_expression(filter_str, scope, parse_fn = parse_single_expression):
+def parse_expression(filter_str, scope, parse_fn = parse_single_expression, strict_scope = True):
     subst_map = {
         '&&' : 'and',
         '||' : 'or',
@@ -438,15 +442,21 @@ def parse_expression(filter_str, scope, parse_fn = parse_single_expression):
         raise ValueError('mismatch \'(\' and \')\' count (%s vs %s), check you expresion' % (o_gr, c_gr))
 
     filter_str_ret = ''
+    dummy_all = True
+
     for expr in expr_arr:
-        expr_inj = parse_fn(expr[0], scope) if expr[1] else expr[0]
+        if expr[1]:
+            expr_inj, dummy_expr = parse_fn(expr[0], scope, strict_scope = strict_scope)
+            dummy_all &= dummy_expr
+        else:
+            expr_inj = expr[0]
 
         filter_str_ret += expr_inj
 
         ### print '\n\'%s\' ==> \'%s\'\n' % (expr[0], expr_inj)
 
     # print filter_str_ret # V-1
-    return filter_str_ret
+    return filter_str_ret, dummy_all
 
 
 parser = argparse.ArgumentParser()

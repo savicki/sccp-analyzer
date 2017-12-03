@@ -336,10 +336,10 @@ class PhoneSession(SessionBase, JsonSerializable, RtpFlowsContainer):
         for line in self.register_info['number'].keys():
             number = self.register_info['number'][line]
             if number != '':
-                print "Line [%s] : #%s / '%s'" % (
+                print 'Line [%s] : #%s / \'%s\'' % (
                         line,
                         number,
-                        self.register_info['name'][line]
+                        self.register_info['name'][line] if self.register_info['name'].has_key(line) else ''
                     )
 
         #
