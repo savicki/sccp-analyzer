@@ -268,6 +268,20 @@ _fields_mapper = {
             'start'         : Num('call["st_time"]'),
             'end'           : Num('call["end_time"]')
         }
+    },
+    'endpoint' : {
+        'sessions' :        Array( Num('endpoint.sessions') ),
+        'falls' :           Array( Num('endpoint.falls') ),
+        # FIXME: [almost] copy paste from session.owner path
+        'owner' : {
+            'protocol' : {
+                'used'          : Num('endpoint.owner["protocol"]["used"]'),
+                'max_supported' : Num('endpoint.owner["protocol"]["max_supported"]'),
+                'requested'     : Num('endpoint.owner["protocol"]["requested"]'),
+            },
+            'names'         : Array( Str('endpoint.owner["name"].values()') ),
+            'numbers'       : Array( Str('endpoint.owner["number"].values()') )
+        },
     }
 }
 
@@ -344,7 +358,7 @@ def parse_single_expression(filter_str, scope, strict_scope = True):
         raise ValueError('too short query \'%s\'' % filter_str)
 
     field_str = parts[0]
-    m = re.match(r'^(?P<scope>session|call)(?P<fields>(?:\.\w+)*)(?P<dot>\.)(?(dot)(?P<last_field>\w+)|$)$', field_str)
+    m = re.match(r'^(?P<scope>session|call|endpoint)(?P<fields>(?:\.\w+)*)(?P<dot>\.)(?(dot)(?P<last_field>\w+)|$)$', field_str)
     if not m:
         raise ValueError('wrong field name \'%s\'' % field_str)
     scope_used = m.group('scope')

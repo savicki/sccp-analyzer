@@ -52,7 +52,6 @@ def create_call_type_classifier():
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 
 
-# TODO: use case "show all skinny sessions from Xxx"
 class PhoneSession(SessionBase, JsonSerializable, RtpFlowsContainer):
     def __init__(self, data = None):
         SessionBase.__init__(self)

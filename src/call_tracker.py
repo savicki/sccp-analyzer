@@ -7,6 +7,7 @@ from common_types import *
 from call_info import *
 from phone_session import PhoneSession, PhoneSessionIterator
 from mtp_session import MTPSession, MTPSessionIterator, RelayPoint
+from endpoint_info import EndpointInfo
 from json_serialization import SkinnySessionsJsonEncoder, SkinnySessionsJsonDecoder
 
 from filter import parse_expression, stringify_filter_map
@@ -26,7 +27,7 @@ _rtp_flows_duplex_map = { }
 _rtp_flows_partial_map = { }
 
 # owner => [session], sorted by time
-_phone_map = { }
+_endpoint_map = { }
 
 
 def _get_sibling_flows(flow, owner):
@@ -137,7 +138,7 @@ if __name__ == "__main__":
         show_calls_bydef = args.show_calls.lower() == 'yes'
         session_expr = _build_expression(args.query, 'session')
         call_expr   = _build_expression(args.query, 'call')
-        phone_expr  = _build_expression(args.query, 'phone')
+        endpoint_expr  = _build_expression(args.query, 'endpoint')
 
     ### print args
 
@@ -150,7 +151,7 @@ if __name__ == "__main__":
     # index stats
     stat_index_phone_sessions, stat_index_tot_calls, stat_index_rtp_flows_duplex, stat_index_rtp_flows_tot = 0, 0, 0, 0
     # search stats
-    stat_srch_phone_sessions, stat_srch_tot_calls = 0, 0
+    stat_srch_phone_sessions, stat_srch_calls, stat_srch_endpoints = 0, 0, 0
 
 
     for session in sccp_sessions:
@@ -164,8 +165,11 @@ if __name__ == "__main__":
             session_cls = SkinnySessionFlags.Phone
             stat_index_phone_sessions += 1
             
+            #
+            # perform search over raw (not indexed) data
+            #
             if args.mode == 'search':
-                eval_session_res = eval(session_expr) if session_expr else True
+                eval_session_res = eval(session_expr) if session_expr else endpoint_expr == None
 
                 if eval_session_res:
                     session_shown = False
@@ -181,7 +185,7 @@ if __name__ == "__main__":
                                     session.show_session_details()
                                     session_shown = True
 
-                                stat_srch_tot_calls += 1
+                                stat_srch_calls += 1
                                 call.show_call_details()
 
                     else:
@@ -195,7 +199,7 @@ if __name__ == "__main__":
         else:
             continue
 
-        if args.mode != 'trace':
+        if args.mode != 'trace' and endpoint_expr == None:
             continue
 
         #
@@ -240,24 +244,44 @@ if __name__ == "__main__":
         # (4) group phone sessions by owner
         if session_cls == SkinnySessionFlags.Phone:
             for line in session.register_info['name'].keys():
+                # TODO: session should has one owner name
                 owner_name = session.register_info['name'][line]
 
-                if not _phone_map.has_key(owner_name):
-                    _phone_map[owner_name] = []
+                if not _endpoint_map.has_key(owner_name):
+                    _endpoint_map[owner_name] = EndpointInfo( session.register_info )
 
-                sessions_slot = _phone_map[owner_name]
+                endpoint = _endpoint_map[owner_name]
                 ind = 0
-                for e_session in sessions_slot:
+                for e_session in endpoint.sessions:
                     if e_session.s_info.st_time > session.s_info.end_time:
                         break
                     i += 1
 
-                sessions_slot.insert(ind, session)
+                endpoint.sessions.insert(ind, session)
+    #
+    # END 'for session in sccp_sessions:'
+    #
+
+    # (5) post-process endpoints
+    for endpoint in _endpoint_map.values():
+        pass
+
+
+    #
+    # perform search over indexed data
+    #
+
+    if endpoint_expr:
+        for endpoint in _endpoint_map.values():
+            eval_endpoint_res = eval(endpoint_expr)
+            if eval_endpoint_res:
+                stat_srch_endpoints += 1
+                print endpoint.owner["name"].values()
 
 
     if args.mode == 'search':
-        print '\nSearch summary: phone sessions: %s, total calls: %s' % (
-            stat_srch_phone_sessions, stat_srch_tot_calls)
+        print '\nSearch summary: phone sessions: %s, calls: %s, endpoints: %s' % (
+            stat_srch_phone_sessions, stat_srch_calls, stat_srch_endpoints)
 
     elif args.mode == 'trace':
         print '\nIndex summary: phone sessions: %s, total calls: %s, rtp flows: %s (total: %s)' % (

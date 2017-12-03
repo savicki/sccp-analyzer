@@ -166,3 +166,11 @@ python pcap_parser.py -d "c:\\github\\sccp-analyzer\\src\\pcaps\\13_sep_2017\\" 
 python pcap_parser.py -d "c:\\github\\sccp-analyzer\\src\\pcaps\\13_sep_2017\\" -ps "10.0.109.10_51139_10.0.3.3_2000_1505125721.pcap" -pl 1 -jf calls_db.json >calls_db.log
 
 python pcap_parser.py -d "c:\\github\\sccp-analyzer\\src\\pcaps\\13_sep_2017\\" -f "10.0.107.215_49841_10.0.3.3_2000_1505133586.pcap"
+
+
+#
+# endpoints
+#
+
+python call_tracker.py  -f calls_db.json -m 'search' -q '(endpoint.sessions.len == 1)'
+python call_tracker.py  -f calls_db.json -m 'search' -q '(endpoint.sessions.len > 1)'
