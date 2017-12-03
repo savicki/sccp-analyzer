@@ -35,6 +35,10 @@ python call_tracker.py -f calls_db.json -m 'search' -s-filt 'session.summary.cal
 
 python call_tracker.py -f calls_db.json -m 'search' -s-filt 'session.summary.soft_keys has SkinnyKeyEvents.EndCall' -c-filt '' -s-calls 'yes'
 
+python call_tracker.py -f calls_db.json -m 'search' -s-filt 'session.info.filename == "xxx.pcap"' -s-calls 'no'
+
+python call_tracker.py -f calls_db.json -m 'search' -s-filt 'session.info.filename contains "10.0.101.204_54336_10.0.3.3_2000_1505200105.pcap"' -s-calls 'no'
+
 
 #
 # search calls

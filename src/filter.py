@@ -120,9 +120,10 @@ class Str(Type):
 
     def compose_expr(self, field, operator, value, validate_opaque):
         if operator != 'contains':
-            return Type.compose_expr(self, field, operator, value, validate_opaque)
+            expr = '%s %s "%s"' % (field, operator, value)
 
-        expr = '%s.find(%s)' % (field, value)
+        else:
+            expr = '%s.find("%s") >= 0' % (field, value)
 
         return expr
 
