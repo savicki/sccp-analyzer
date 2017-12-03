@@ -68,16 +68,6 @@ class PhoneSession(SessionBase, JsonSerializable, RtpFlowsContainer):
         else:
             self.calls_summary = {}
 
-            # TODO: timestamp when SYN/SYN-ACK was seen or another 1-st packet
-            self.st_time = 0
-            # TODO: whether SYN/SYN-ACK was seen
-            self.st_graceful = False
-
-            # TODO: timestamp when FIN/RST was seen or another last packet
-            self.end_time = 0
-            # TODO: whether FIN/FIN-ACK/RST was seen
-            self.end_graceful = False
-
             self.register_info = {
                 # per line
                 "number" : {},
@@ -343,14 +333,25 @@ class PhoneSession(SessionBase, JsonSerializable, RtpFlowsContainer):
                 protocol["used"]
             )
 
-        for line in self.register_info["number"].keys():
-            number = self.register_info["number"][line]
-            if number != "":
+        for line in self.register_info['number'].keys():
+            number = self.register_info['number'][line]
+            if number != '':
                 print "Line [%s] : #%s / '%s'" % (
                         line,
                         number,
-                        self.register_info["name"][line]
+                        self.register_info['name'][line]
                     )
+
+        #
+        # drop empty lines & numbers
+        #
+        self.register_info['number'] = {
+            line: num for line, num in self.register_info['number'].items() if num.strip() != '' 
+        }
+
+        self.register_info['name'] = {
+            line: name for line, name in self.register_info['name'].items() if name.strip() != '' 
+        }
 
         return False # no errors
 
@@ -360,6 +361,7 @@ class PhoneSession(SessionBase, JsonSerializable, RtpFlowsContainer):
 
 
     def complete_session_header(self):
+
         ### print "[complete_session_header]"
         self.complete_call(0)
         
@@ -561,6 +563,7 @@ class PhoneSessionIterator(SessionIterator, SessionHandler):
 
 
     def close_session(self):
+
         errors = self._context.flush_calls()
 
         self._context.build_summary()

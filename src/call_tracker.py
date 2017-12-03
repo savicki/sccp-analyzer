@@ -13,18 +13,20 @@ from filter import parse_expression, stringify_filter_map
 
 
 # list of sessions
-sccp_sessions_map = {
+_sessions_map = {
     SkinnySessionFlags.Phone : [],
     SkinnySessionFlags.MTP : []
 }
 
 # call_id => CallInfo
-callid_map = { }
+_call_map = { }
 
 # (rtp_local_ep, rtp_remote_ep) => [RtpFlow]
-rtp_flows_duplex = { }
-rtp_flows_partial = { }
+_rtp_flows_duplex_map = { }
+_rtp_flows_partial_map = { }
 
+# owner => [session], sorted by time
+_phone_map = { }
 
 
 def get_sibling_flows(flow, owner):
@@ -46,8 +48,8 @@ def walk_flows(rtp_flows):
         
         reply_key = rtpf.get_inv_key()
         
-        if rtp_flows_duplex.has_key(reply_key):
-            reply_rtpf = rtp_flows_duplex[reply_key][0] # TODO: choose by time, not just first
+        if _rtp_flows_duplex_map.has_key(reply_key):
+            reply_rtpf = _rtp_flows_duplex_map[reply_key][0] # TODO: choose by time, not just first
 
             print reply_rtpf
 
@@ -76,10 +78,10 @@ def walk_flows(rtp_flows):
 def trace_call(callid):
     print '\nTracing call [%s]...' % callid
 
-    if callid_map.has_key(callid):
+    if _call_map.has_key(callid):
         found = False
         
-        for call in callid_map[callid]:
+        for call in _call_map[callid]:
             # only one call in set of calls with given Call-ID may have 'Connected' property
             if SkinnyCallStates.Connected in call.states_history.values():
                 found = True
@@ -149,6 +151,7 @@ if __name__ == "__main__":
         #
 
         if isinstance(session, PhoneSession):
+
             session_cls = SkinnySessionFlags.Phone
             stat_index_phone_sessions += 1
             
@@ -159,7 +162,7 @@ if __name__ == "__main__":
                     session_shown = False
 
                     # go deep
-                    if args.call_filter or show_calls_bydef:
+                    if len(session.calls) > 0 and (args.call_filter or show_calls_bydef):
                         for call in session.calls.values():
                             eval_call_res = eval(call_expr) if call_expr else show_calls_bydef
 
@@ -171,6 +174,7 @@ if __name__ == "__main__":
 
                                 stat_srch_tot_calls += 1
                                 call.show_call_details()
+
                     else:
                         stat_srch_phone_sessions += 1
                         session.show_session_details()
@@ -191,15 +195,15 @@ if __name__ == "__main__":
 
 
         # (1) split sessions by their type
-        sccp_sessions_map[session_cls].append(session)
+        _sessions_map[session_cls].append(session)
 
         # (2) index calls by their callid
         if session_cls == SkinnySessionFlags.Phone:
             for callid, call in session.calls.items():
-                if not callid_map.has_key(callid):
-                    callid_map[callid] = [call]
+                if not _call_map.has_key(callid):
+                    _call_map[callid] = [call]
                 else:
-                    callid_map[callid].append(call) # only one call in callid range has Connected state
+                    _call_map[callid].append(call) # only one call in callid range has Connected state
                 stat_index_tot_calls += 1
 
         # (3) index rtp flows by their ip-port endpoints
@@ -213,25 +217,40 @@ if __name__ == "__main__":
                     stat_index_rtp_flows_duplex += 1
                     flow_key = rtpf.get_key()
                     #print flow_key
-                    if not rtp_flows_duplex.has_key(flow_key):
-                        rtp_flows_duplex[flow_key] = [rtpf]
+                    if not _rtp_flows_duplex_map.has_key(flow_key):
+                        _rtp_flows_duplex_map[flow_key] = [rtpf]
                     else:
                         #raise ValueError("FUCK")
                         ### print 'duplicate flow key: %s' % flow_key
-                        rtp_flows_duplex[flow_key].append(flow_key)
+                        _rtp_flows_duplex_map[flow_key].append(flow_key)
 
                 elif rtpf.is_one_way():
                     # TODO:
                     pass #print "one way", rtpf
 
-    print
+        # (4) group phone sessions by owner
+        if session_cls == SkinnySessionFlags.Phone:
+            for line in session.register_info['name'].keys():
+                owner_name = session.register_info['name'][line]
+
+                if not _phone_map.has_key(owner_name):
+                    _phone_map[owner_name] = []
+
+                sessions_slot = _phone_map[owner_name]
+                ind = 0
+                for e_session in sessions_slot:
+                    if e_session.s_info.st_time > session.s_info.end_time:
+                        break
+                    i += 1
+
+                sessions_slot.insert(ind, session)
 
     if args.mode == 'search':
-        print 'Search summary: phone sessions: %s, total calls: %s' % (
+        print '\nSearch summary: phone sessions: %s, total calls: %s' % (
             stat_srch_phone_sessions, stat_srch_tot_calls)
 
     elif args.mode == 'trace':
-        print 'Index summary: phone sessions: %s, total calls: %s, rtp flows: %s (total: %s)' % (
+        print '\nIndex summary: phone sessions: %s, total calls: %s, rtp flows: %s (total: %s)' % (
             stat_index_phone_sessions, stat_index_tot_calls, stat_index_rtp_flows_duplex, stat_index_rtp_flows_tot)
 
         trace_call( str(args.trace_call) )
