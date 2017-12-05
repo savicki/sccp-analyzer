@@ -115,7 +115,7 @@ parser.add_argument('-f', '--file', help='filename  to read and parse json from'
 parser.add_argument('-m', '--mode', help='mode', required=True)
 # 'search' mode
 parser.add_argument('-q', '--query', help='query', default='')
-parser.add_argument('-s-calls', '--show-calls', help='whether to show calls when call-level filter not specified', required=False, type=str, default='yes')
+parser.add_argument('-s-calls', '--show-calls', help='whether to show calls when call-level filter not specified', required=False, type=str, default='no')
 # 'trace' mode
 parser.add_argument('-t', '--trace-call', help='call id to trace', required=False, type=int, default=0)
 
@@ -136,9 +136,10 @@ if __name__ == "__main__":
     
     elif args.mode == 'search':
         show_calls_bydef = args.show_calls.lower() == 'yes'
-        session_expr = _build_expression(args.query, 'session')
-        call_expr   = _build_expression(args.query, 'call')
-        endpoint_expr  = _build_expression(args.query, 'endpoint')
+        session_expr    = _build_expression(args.query, 'session')
+        call_expr       = _build_expression(args.query, 'call')
+        endpoint_expr   = _build_expression(args.query, 'endpoint')
+        fall_expr       = _build_expression(args.query, 'fall')
 
     ### print args
 
@@ -151,7 +152,7 @@ if __name__ == "__main__":
     # index stats
     stat_index_phone_sessions, stat_index_tot_calls, stat_index_rtp_flows_duplex, stat_index_rtp_flows_tot = 0, 0, 0, 0
     # search stats
-    stat_srch_phone_sessions, stat_srch_calls, stat_srch_endpoints = 0, 0, 0
+    stat_srch_phone_sessions, stat_srch_calls, stat_srch_endpoints, stat_srch_falls = 0, 0, 0, 0
 
 
     for session in sccp_sessions:
@@ -169,14 +170,18 @@ if __name__ == "__main__":
             # perform search over raw (not indexed) data
             #
             if args.mode == 'search':
-                eval_session_res = eval(session_expr) if session_expr else endpoint_expr == None
+                eval_session_res = eval(session_expr) if session_expr else False
+                # session filter not specified, take default verdict (depend on @endpoint_expr)
+                force_eval_session_res = (not session_expr and not endpoint_expr and not fall_expr)
 
-                if eval_session_res:
+                if eval_session_res or force_eval_session_res:
                     session_shown = False
 
                     # go deep
                     if len(session.calls) > 0 and (call_expr or show_calls_bydef):
-                        for call in session.calls.values():
+                        for callid in sorted(session.calls.keys()):
+                            call = session.calls[callid]
+
                             eval_call_res = eval(call_expr) if call_expr else show_calls_bydef
 
                             if eval_call_res:
@@ -188,7 +193,8 @@ if __name__ == "__main__":
                                 stat_srch_calls += 1
                                 call.show_call_details()
 
-                    else:
+                    # show call-free sessions only if they matched session filter
+                    elif eval_session_res:
                         stat_srch_phone_sessions += 1
                         session.show_session_details()
                         session_shown = True
@@ -199,7 +205,7 @@ if __name__ == "__main__":
         else:
             continue
 
-        if args.mode != 'trace' and endpoint_expr == None:
+        if args.mode != 'trace' and not endpoint_expr and not fall_expr:
             continue
 
         #
@@ -244,44 +250,62 @@ if __name__ == "__main__":
         # (4) group phone sessions by owner
         if session_cls == SkinnySessionFlags.Phone:
             for line in session.register_info['name'].keys():
-                # TODO: session should has one owner name
-                owner_name = session.register_info['name'][line]
+                # TODO: session should has 1 and only 1 owner name
+                endpoint_key = '%s %s' % (
+                    session.register_info['name'][line], 
+                    # FIXME
+                    "session.register_info['info']['mac_addr']")
 
-                if not _endpoint_map.has_key(owner_name):
-                    _endpoint_map[owner_name] = EndpointInfo( session.register_info )
+                if not _endpoint_map.has_key(endpoint_key):
+                    _endpoint_map[endpoint_key] = EndpointInfo( session.register_info )
 
-                endpoint = _endpoint_map[owner_name]
-                ind = 0
-                for e_session in endpoint.sessions:
-                    if e_session.s_info.st_time > session.s_info.end_time:
-                        break
-                    i += 1
-
-                endpoint.sessions.insert(ind, session)
+                endpoint = _endpoint_map[endpoint_key]
+                endpoint.add_session(session)
     #
     # END 'for session in sccp_sessions:'
     #
 
     # (5) post-process endpoints
     for endpoint in _endpoint_map.values():
-        pass
+        endpoint.post_process()
 
 
     #
     # perform search over indexed data
     #
 
-    if endpoint_expr:
+    if endpoint_expr or fall_expr:
         for endpoint in _endpoint_map.values():
-            eval_endpoint_res = eval(endpoint_expr)
+            
+            eval_endpoint_res = eval(endpoint_expr) if endpoint_expr else True
+            
             if eval_endpoint_res:
-                stat_srch_endpoints += 1
-                print endpoint.owner["name"].values()
+                endpoint_shown = False
+
+                if fall_expr:
+                    for fall in endpoint.falls:
+
+                        eval_fall_res = eval(fall_expr)
+
+                        if eval_fall_res:
+                            if not endpoint_shown:
+                                stat_srch_endpoints += 1
+                                endpoint.show_endpoint_info(show_falls = False)
+                                endpoint_shown = True
+
+                            stat_srch_falls += 1
+                            fall.show_fall_details()
+                else:
+                    stat_srch_endpoints += 1
+                    stat_srch_falls += len(endpoint.falls)
+                    endpoint.show_endpoint_info()
+                    endpoint_shown = True
+
 
 
     if args.mode == 'search':
-        print '\nSearch summary: phone sessions: %s, calls: %s, endpoints: %s' % (
-            stat_srch_phone_sessions, stat_srch_calls, stat_srch_endpoints)
+        print '\nSearch summary: phone sessions: %s, calls: %s, endpoints: %s, falls: %s' % (
+            stat_srch_phone_sessions, stat_srch_calls, stat_srch_endpoints, stat_srch_falls)
 
     elif args.mode == 'trace':
         print '\nIndex summary: phone sessions: %s, total calls: %s, rtp flows: %s (total: %s)' % (

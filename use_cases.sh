@@ -38,6 +38,7 @@ python call_tracker.py -f calls_db.json -m 'search' -q 'session.summary.soft_key
 python call_tracker.py -f calls_db.json -m 'search' -q 'session.info.filename == "xxx.pcap"' -s-calls 'no'
 
 python call_tracker.py -f calls_db.json -m 'search' -q 'session.info.filename contains "10.0.101.204_54336_10.0.3.3_2000_1505200105.pcap"' -s-calls 'no'
+python call_tracker.py -f calls_db.json -m 'search' -q 'session.info.filename contains "10.0.2.192_"' -s-calls 'no'
 
 
 #
@@ -66,6 +67,13 @@ python call_tracker.py -f calls_db.json -m 'search' -q '(call.rtp.dur_min > 10) 
 python call_tracker.py -f calls_db.json -m 'search' -q '(call.errors has ErrorType2.RtpOneWayMediaNoRecv) && ((call.soft_keys has SkinnyKeyEvents.Transfer) == False) && (call.rtp.stats.len == 1)'
 
 python call_tracker.py -f calls_db.json -m 'search' -q '(call.errors has ErrorType2.RtpOneWayMediaNoRecv) && ((call.soft_keys has SkinnyKeyEvents.Transfer) == False) && (call.rtp.stats.len == 1) && (call.attrs has SkinnyCallAttrs.OneWayMediaSetup) == False && (call.rtp.dur_min > 2)'
+
+python call_tracker.py  -f calls_db.json -m 'search' -q 'call.callid == 22672297' -s-calls 'no'
+
+python call_tracker.py  -f calls_db.json -m 'search' -q '(call.time.duration > 30) && (call.type == SkinnyCallType.INBOUND_CALL)'
+
+python call_tracker.py  -f calls_db.json -m 'search' -q 'call.callee.name contains "Savicki"' 
+python call_tracker.py  -f calls_db.json -m 'search' -q 'call.caller.name contains "Savicki"'
 
 
 #
@@ -161,16 +169,35 @@ python call_tracker.py -f calls_db.json -m 'trace' --trace-call '22744714'
 # pcap parser
 #
 
-python pcap_parser.py -d "c:\\github\\sccp-analyzer\\src\\pcaps\\13_sep_2017\\" -jf calls_db.json -pl 10 >calls_db.log 
-python pcap_parser.py -d "c:\\github\\sccp-analyzer\\src\\pcaps\\13_sep_2017\\" -f "10.0.101.235_58095_10.0.3.3_2000_1505125701.pcap" -jf calls_db.json
-python pcap_parser.py -d "c:\\github\\sccp-analyzer\\src\\pcaps\\13_sep_2017\\" -ps "10.0.109.10_51139_10.0.3.3_2000_1505125721.pcap" -pl 1 -jf calls_db.json >calls_db.log
+python pcap_parser.py -d 'c:\\github\\sccp-analyzer\\src\\pcaps\\13_sep_2017\\' -jf calls_db.json -pl 10 >calls_db.log 
+python pcap_parser.py -d 'c:\\github\\sccp-analyzer\\src\\pcaps\\13_sep_2017\\' -f '10.0.101.235_58095_10.0.3.3_2000_1505125701.pcap' -jf calls_db.json >calls_db.log
+python pcap_parser.py -d 'c:\\github\\sccp-analyzer\\src\\pcaps\\13_sep_2017\\' -ps '10.0.109.10_51139_10.0.3.3_2000_1505125721.pcap' -pl 1 -jf calls_db.json >calls_db.log
 
-python pcap_parser.py -d "c:\\github\\sccp-analyzer\\src\\pcaps\\13_sep_2017\\" -f "10.0.107.215_49841_10.0.3.3_2000_1505133586.pcap"
+python pcap_parser.py -d 'c:\\github\\sccp-analyzer\\src\\pcaps\\13_sep_2017\\' -f '10.0.107.215_49841_10.0.3.3_2000_1505133586.pcap'
 
 
 #
 # endpoints
 #
 
-python call_tracker.py  -f calls_db.json -m 'search' -q '(endpoint.sessions.len == 1)'
-python call_tracker.py  -f calls_db.json -m 'search' -q '(endpoint.sessions.len > 1)'
+python call_tracker.py  -f calls_db.json -m 'search' -q 'endpoint.sessions.len == 1'
+python call_tracker.py  -f calls_db.json -m 'search' -q 'endpoint.sessions.len > 1'
+python call_tracker.py  -f calls_db.json -m 'search' -q '(endpoint.sessions.len > 1) && (endpoint.channels.len == 1)'
+python call_tracker.py  -f calls_db.json -m 'search' -q '(endpoint.sessions.len > 1) && (endpoint.owner.names has "Mura")'
+
+python call_tracker.py  -f calls_db.json -m 'search' -q '(endpoint.sessions.len > 1) && (endpoint.channels.len > 2)'
+
+python call_tracker.py  -f calls_db.json -m 'search' -q '(endpoint.sessions.len > 1) && (endpoint.channels.len == 1) && (endpoint.falls.items.len > 1)'  
+
+python call_tracker.py  -f calls_db.json -m 'search' -q '(endpoint.owner.names has "Mura") && (endpoint.falls.intervals.min > 20)' -s-calls 'no'
+
+python call_tracker.py  -f calls_db.json -m 'search' -q '(endpoint.sessions.len > 1) && (endpoint.channels.len == 1) && ((endpoint.owner.names has "Klyuchevskaya") == False)' 
+
+
+python call_tracker.py  -f calls_db.json -m 'search' -q '(endpoint.owner.names has Murav) && (fall.duration < 30)'
+python call_tracker.py  -f calls_db.json -m 'search' -q '(endpoint.owner.names has Murav) && (fall.duration < 30) && (fall.last_call.duration > 100)' 
+
+python call_tracker.py  -f calls_db.json -m 'search' -q '(fall.last_call.duration > 100) && (fall.last_call.ends > 500) && (endpoint.owner.names has Murav) && (fall.duration < 30) && (fall.next_call.duration > 40) && (fall.next_call.starts < 10)' 
+
+# find session restarting
+python call_tracker.py  -f calls_db.json -m 'search' -q '(fall.last_call.duration < 25) && (fall.last_call.ends < 20) && (fall.duration < 100) && (fall.next_call.duration > 20) && (fall.next_call.starts < 20)' 

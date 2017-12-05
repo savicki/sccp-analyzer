@@ -1,8 +1,8 @@
 
 from enum import *
-import json
+import json, re
 
-from common_types import SkinnySessionFlags, SessionBase, SessionIterator, SessionHandler, JsonSerializable, RtpFlowsContainer, ErrorType2
+from common_types import SkinnySessionFlags, SessionBase, SessionIterator, SessionHandler, JsonSerializable, RtpFlowsContainer, ErrorType2, IpTuple
 from field_classifier import *
 from call_info import *
 
@@ -56,15 +56,29 @@ class PhoneSession(SessionBase, JsonSerializable, RtpFlowsContainer):
     def __init__(self, data = None):
         SessionBase.__init__(self)
 
-        self.__call_classifier = create_call_type_classifier()
-
         if data:
             self.__dict__ = data
 
             for call in self.calls.values():
                 call.set_owner(self)
 
+            # FIXME
+            m = re.match(r'^(?P<local_ip>\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})_(?P<local_port>\d{1,5})_(?P<remote_ip>\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})_(?P<remote_port>\d{1,5})_', 
+                self.s_info.filename)
+            if not m:
+                raise ValueError('cannot parse IP info from filename')
+
+            self.ip_info = IpTuple()
+
+            self.ip_info.local_ip = m.group('local_ip')
+            self.ip_info.local_port = m.group('local_port')
+            
+            self.ip_info.remote_ip = m.group('remote_ip')
+            self.ip_info.remote_port = m.group('remote_port')
+
         else:
+            self.__call_classifier = create_call_type_classifier()
+
             self.calls_summary = {}
 
             self.register_info = {
@@ -116,11 +130,13 @@ class PhoneSession(SessionBase, JsonSerializable, RtpFlowsContainer):
 
             }
 
+
     def classify_call(self, call_info):
         if self.__call_classifier:
             call_attrs = self.__call_classifier.classify_object(call_info)
             ### print "[classify_call] call: %s, call attrs: %s" % (call_info.callid, hex(call_attrs))
             call_info.set_call_attribute(call_attrs)
+
 
     # by RingIn, OffHook CS
     def test_start_call(self, callid):
@@ -202,8 +218,19 @@ class PhoneSession(SessionBase, JsonSerializable, RtpFlowsContainer):
         print PRINT_DELIMETER
 
 
-    def get_skinny_sessions():
-        pass
+    def get_first_call(self):
+        call = None
+        if len(self.calls_history) > 0:
+            callid = self.calls_history[0][0]
+            call = self.calls[str(callid)]
+        return call
+
+    def get_last_call(self):
+        call = None
+        if len(self.calls_history) > 0:
+            callid = self.calls_history[len(self.calls_history) - 1][0]
+            call = self.calls[str(callid)]
+        return call
 
 
     def set_session_error(self, error, error_ctx = None):

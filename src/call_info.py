@@ -196,8 +196,12 @@ class CallInfo(JsonSerializable, Ownable, MediaEndpoint):
         return self.rtp_flows[ppid] if exist else None
 
 
+    def get_duration_sec(self):
+        return self.end_time - self.st_time
+
+
     def get_party_end(self, name):
-        res = None
+        res = ('', '') # (number, name)
         if name == "local" or name == "remote":
             party_info = self.party_info[SkinnyCallStates.Connected]
             if party_info == None:
@@ -214,8 +218,10 @@ class CallInfo(JsonSerializable, Ownable, MediaEndpoint):
                     res = party_info["from"] if name == "local" else party_info["to"]
         return res
 
+
     def get_state(self):
         return self.states_history[max(self.states_history.keys())] if len(self.states_history) > 0 else None
+
 
     def update_pstate(self, pstate, time = None):
         self.parse_state = pstate
@@ -261,6 +267,16 @@ class CallInfo(JsonSerializable, Ownable, MediaEndpoint):
         return True
 
 
+    def get_call_details_oneline(self):
+        dir_str = 'to:' if self.call_type == SkinnyCallType.OUTBOUND_CALL else 'from:'
+        visavi = self.get_party_end('remote')
+
+        if visavi[0] != '':
+            return '%s %s %s' % (dir_str, visavi[0], '(' + visavi[1] + ')' if visavi[1] != '' else '')
+        else:
+            return '%s UNKNOWN' % dir_str
+
+
     def show_call_details(self, compact = False, label = '', padding = ''):
         if compact:
             if label != '':
@@ -274,7 +290,11 @@ class CallInfo(JsonSerializable, Ownable, MediaEndpoint):
             
             print padding, '[ %s ]' % SkinnyCallAttrs.str(self.call_attrs)
 
-            print padding, '[%s - %s]' % (datetime.datetime.fromtimestamp(self.st_time), datetime.datetime.fromtimestamp(self.end_time))
+            print padding, '[%s - %s] [ %.2f sec ]' % (
+                datetime.datetime.fromtimestamp(self.st_time), 
+                datetime.datetime.fromtimestamp(self.end_time),
+                self.end_time - self.st_time
+            )
             
             state = SkinnyCallStates.Connected
             party_info = self.party_info[state];
@@ -306,7 +326,11 @@ class CallInfo(JsonSerializable, Ownable, MediaEndpoint):
 
             print "[ %s ]" % SkinnyCallAttrs.str(self.call_attrs)
 
-            print '[%s - %s]' % (datetime.datetime.fromtimestamp(self.st_time), datetime.datetime.fromtimestamp(self.end_time))
+            print '[%s - %s] [ %.2f sec ]' % (
+                datetime.datetime.fromtimestamp(self.st_time), 
+                datetime.datetime.fromtimestamp(self.end_time),
+                self.end_time - self.st_time
+            )
             
             for state in self.party_info.keys():
                 party_info = self.party_info[state];

@@ -248,11 +248,21 @@ _fields_mapper = {
         }
     },
     'call': {
-        'callid'            : Num ('call.callid'),
+        'callid'            : Num('call.callid'),
+        'type'              : Num('call.call_type'),
         'states'            : Array( Num('call.states_history.values()') ),
         'errors'            : Array( BitNum('call.call_errors') ),
         'attrs'             : Array( BitNum('call.call_attrs') ),
         'soft_keys'         : Array( Num('call.keys_history.values()') ),
+
+        'callee' : {
+            'number' :      Str( 'call.get_party_end("remote")[0]' ),
+            'name' :        Str( 'call.get_party_end("remote")[1]' )
+        },
+        'caller' : {
+            'number' :      Str( 'call.get_party_end("local")[0]' ),
+            'name' :        Str( 'call.get_party_end("local")[1]' )
+        },
 
         'rtp' : {
             'flows'         : Array( Num('call.rtp_flows.keys()') ),
@@ -266,12 +276,20 @@ _fields_mapper = {
         
         'time' : {
             'start'         : Num('call["st_time"]'),
-            'end'           : Num('call["end_time"]')
+            'end'           : Num('call["end_time"]'),
+            'duration'      : Num('call.get_duration_sec()')
         }
     },
     'endpoint' : {
         'sessions' :        Array( Num('endpoint.sessions') ),
-        'falls' :           Array( Num('endpoint.falls') ),
+        'channels' :        Array( Num('endpoint.channels') ),
+        'falls' : {
+            'items' :       Array( Num('endpoint.falls') ),
+            'intervals' : {
+                'min' :     Num('endpoint.stats["duration"]["min"]'),
+                'max' :     Num('endpoint.stats["duration"]["max"]')
+            }
+        },
         # FIXME: [almost] copy paste from session.owner path
         'owner' : {
             'protocol' : {
@@ -282,6 +300,25 @@ _fields_mapper = {
             'names'         : Array( Str('endpoint.owner["name"].values()') ),
             'numbers'       : Array( Str('endpoint.owner["number"].values()') )
         },
+    },
+    'fall' : {
+        'duration' :        Num('fall.duration'),
+        'last_call' : {
+            'duration' :    Num('( fall.last_call.get_duration_sec() if fall.last_call else 0 )'),
+            'ends' :        Num('( (fall.last_call.get_owner().s_info.end_time - fall.last_call.end_time) if fall.last_call else 0 )'),
+            'visavi' : {
+                'number' :  Str('( fall.last_call.get_party_end("local")[0] if fall.last_call else "" )'),
+                'name' :    Str('( fall.last_call.get_party_end("local")[1] if fall.last_call else "" )')
+            }
+        },
+        'next_call' : {
+            'duration' :    Num('( fall.next_call.get_duration_sec() if fall.next_call else 0 )'),
+            'starts' :      Num('( (fall.next_call.st_time - fall.next_call.get_owner().s_info.st_time) if fall.next_call else 0 )'),
+            'visavi' : {
+                'number' :  Str('( fall.next_call.get_party_end("local")[0] if fall.next_call else "" )'),
+                'name' :    Str('( fall.next_call.get_party_end("local")[1] if fall.next_call else "" )')
+            }
+        }
     }
 }
 
@@ -358,7 +395,7 @@ def parse_single_expression(filter_str, scope, strict_scope = True):
         raise ValueError('too short query \'%s\'' % filter_str)
 
     field_str = parts[0]
-    m = re.match(r'^(?P<scope>session|call|endpoint)(?P<fields>(?:\.\w+)*)(?P<dot>\.)(?(dot)(?P<last_field>\w+)|$)$', field_str)
+    m = re.match(r'^(?P<scope>session|call|endpoint|fall)(?P<fields>(?:\.\w+)*)(?P<dot>\.)(?(dot)(?P<last_field>\w+)|$)$', field_str)
     if not m:
         raise ValueError('wrong field name \'%s\'' % field_str)
     scope_used = m.group('scope')

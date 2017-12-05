@@ -207,9 +207,24 @@ class SessionInfo(JsonSerializable):
         else:
             self.in_mdl = True
             self.filename = ''
-            # first, last msg
+            # first msg
             self.st_time = None
+            # last msg
+            # this MSG-timerange must not differ from transport range in more than KeepAlive interval
             self.end_time = None
+
+
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+
+
+class IpTuple(JsonSerializable):
+    def __init__(self):
+        # CCM endpoint
+        self.remote_ip = None
+        self.remote_port = None
+
+        self.local_ip = None
+        self.local_port = None
 
 
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
