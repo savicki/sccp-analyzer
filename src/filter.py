@@ -290,7 +290,7 @@ _fields_mapper = {
                 'max' :     Num('endpoint.stats["duration"]["max"]')
             }
         },
-        # FIXME: [almost] copy paste from session.owner path
+        # FIXME: [almost] copy paste from 'session.owner' path
         'owner' : {
             'protocol' : {
                 'used'          : Num('endpoint.owner["protocol"]["used"]'),
@@ -304,6 +304,7 @@ _fields_mapper = {
     'fall' : {
         'duration' :        Num('fall.duration'),
         'last_call' : {
+            # FIXME: [almost] copy paste from 'call' path
             'duration' :    Num('( fall.last_call.get_duration_sec() if fall.last_call else 0 )'),
             'ends' :        Num('( (fall.last_call.get_owner().s_info.end_time - fall.last_call.end_time) if fall.last_call else 0 )'),
             'visavi' : {
