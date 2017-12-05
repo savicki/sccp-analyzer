@@ -272,9 +272,11 @@ class CallInfo(JsonSerializable, Ownable, MediaEndpoint):
         visavi = self.get_party_end('remote')
 
         if visavi[0] != '':
-            return '%s %s %s' % (dir_str, visavi[0], '(' + visavi[1] + ')' if visavi[1] != '' else '')
+            res = '%s %s %s' % (dir_str, visavi[0], '(' + visavi[1] + ')' if visavi[1] != '' else '')
         else:
-            return '%s UNKNOWN' % dir_str
+            res = '%s UNKNOWN' % dir_str
+
+        return res
 
 
     def show_call_details(self, compact = False, label = '', padding = ''):

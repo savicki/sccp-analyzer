@@ -100,6 +100,7 @@ class ErrorType2(BitEnum):
 
     # no getting KeepAlive/KeepAliveAck within specified interval (lost link with UCM?)
     KeepAliveLost           = 1 << 9
+    RtpLost                 = 1 << 10    
 
 
     @staticmethod
@@ -125,6 +126,8 @@ skinny_error_types = {
     ErrorType2.SoftKeyRepeat        : "SoftKeyRepeat",
 
     ErrorType2.KeepAliveLost        : "KeepAliveLost",
+
+    ErrorType2.RtpLost              : "RtpLost"
 }
 
 
