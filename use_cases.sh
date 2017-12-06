@@ -205,3 +205,8 @@ python call_tracker.py  -f calls_db.json -m 'search' -q '(fall.last_call.duratio
 python call_tracker.py  -f calls_db.json -m 'search' -q '(fall.last_call.ends < 60) && (fall.duration < 200) && (fall.next_call.duration > 20) && (fall.next_call.starts < 60) && (fall.last_call.duration > 0) && (fall.next_call.duration > 0)' 
 python call_tracker.py  -f calls_db.json -m 'search' -q '(fall.last_call.ends < 120) && (fall.duration < 300) && (fall.next_call.duration > 20) && (fall.next_call.starts < 60) && (fall.last_call.duration > 0) && (fall.next_call.duration > 0)' 
 python call_tracker.py  -f calls_db.json -m 'search' -q '(fall.last_call.ends < 20) && (fall.duration < 300) && (fall.last_call.duration > 0) && (fall.next_call.duration > 0)' 
+
+python call_tracker.py  -f calls_db.json -m 'search' -q '(fall.last_call.visavi.number == "5342")'  
+python call_tracker.py  -f calls_db.json -m 'search' -q '(fall.last_call.visavi.number == fall.next_call.visavi.number)' 
+
+python call_tracker.py  -f calls_db.json -m 'search' -q '(fall.last_call.visavi.number == fall.next_call.visavi.number) && (fall.last_call.duration > 0)' 

@@ -16,9 +16,10 @@ class Type(object):
     _str_type = ''
 
 
-    def __init__(self, field):
+    def __init__(self, field, value_exp = False):
         self._field = field
         self._base_type = None # always 'None' for ordinal types
+        self._value_exp = value_exp
 
     def get_field(self):
         return self._field
@@ -63,8 +64,8 @@ class Num(Type):
     _ops = ['==', '!=', '>', '<', '>=', '<=', '&']
     _str_type = 'num'
 
-    def __init__(self, exp):
-        Type.__init__(self, exp)
+    def __init__(self, exp, value_exp = False):
+        Type.__init__(self, exp, value_exp)
 
     # accepted types: int, float, IntEnum
     def validate_value(self, value_str):
@@ -107,8 +108,8 @@ class Str(Type):
     _ops = ['contains', '==', '!=']
     _str_type = 'string'
 
-    def __init__(self, exp):
-        Type.__init__(self, exp)
+    def __init__(self, exp, value_exp = False):
+        Type.__init__(self, exp, value_exp)
     
     # accepted types: str
     def validate_value(self, value_str):
@@ -116,12 +117,20 @@ class Str(Type):
         
         m = re.match(r'^(?P<left_q>[\'\"]?)(?P<value>[^\'\"]+)(?(left_q)(?:[\'\"])|$)$', value_str)
         ## print m.group('value') # V-2
-        return m != None, '%s' % m.group('value') if m else value_str, None
+        if not self._value_exp:
+            return m != None, '"%s"' % m.group('value') if m else value_str, None
+        else:
+            if not m: # not wrapped by "" / '' - that's expression
+                dot = value_str.find('.')
+                scope = value_str[:dot]
+                query = value_str[dot+1:]
+                return True, _convert_field(scope, query.split('.')).get_field(), None
+            else:
+                return True, '"%s"' % m.group('value') if m else value_str, None
 
     def compose_expr(self, field, operator, value, validate_opaque):
         if operator != 'contains':
-            expr = '%s %s "%s"' % (field, operator, value)
-
+            expr = '%s %s %s' % (field, operator, value)
         else:
             expr = '%s.find("%s") >= 0' % (field, value)
 
@@ -208,6 +217,7 @@ class Array(Type):
 
         elif isinstance(self._base_type, Str):
             # len( [s for s in @searchee if len( [i for i in @str_array_field if i.find(s) != -1 ] ) > 0] )
+            value = [ v.strip('"') for v in value ]
             left_expr = 'len([s for s in %s if len( [i for i in %s if i.lower().find(s) != -1 ] ) > 0])' % (value, field)
             # len( @searchee ) / 0
             right_expr = ('len(%s)' % value) if is_conjuct else '0' 
@@ -308,16 +318,16 @@ _fields_mapper = {
             'duration' :    Num('( fall.last_call.get_duration_sec() if fall.last_call else 0 )'),
             'ends' :        Num('( (fall.last_call.get_owner().s_info.end_time - fall.last_call.end_time) if fall.last_call else 0 )'),
             'visavi' : {
-                'number' :  Str('( fall.last_call.get_party_end("local")[0] if fall.last_call else "" )'),
-                'name' :    Str('( fall.last_call.get_party_end("local")[1] if fall.last_call else "" )')
+                'number' :  Str('( fall.last_call.get_party_end("remote")[0] if fall.last_call else "" )', value_exp = True),
+                'name' :    Str('( fall.last_call.get_party_end("remote")[1] if fall.last_call else "" )', value_exp = True)
             }
         },
         'next_call' : {
             'duration' :    Num('( fall.next_call.get_duration_sec() if fall.next_call else 0 )'),
             'starts' :      Num('( (fall.next_call.st_time - fall.next_call.get_owner().s_info.st_time) if fall.next_call else 0 )'),
             'visavi' : {
-                'number' :  Str('( fall.next_call.get_party_end("local")[0] if fall.next_call else "" )'),
-                'name' :    Str('( fall.next_call.get_party_end("local")[1] if fall.next_call else "" )')
+                'number' :  Str('( fall.next_call.get_party_end("remote")[0] if fall.next_call else "" )', value_exp = True),
+                'name' :    Str('( fall.next_call.get_party_end("remote")[1] if fall.next_call else "" )', value_exp = True)
             }
         }
     }
