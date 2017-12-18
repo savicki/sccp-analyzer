@@ -2,7 +2,7 @@
 from enum import *
 import json, re
 
-from common_types import SkinnySessionFlags, SessionBase, SessionIterator, SessionHandler, JsonSerializable, RtpFlowsContainer, ErrorType2, IpTuple
+from common_types import SkinnySessionFlags, SessionBase, SessionIterator, SessionHandler, JsonSerializable, RtpFlowsContainer, ErrorType2, SkinnySessionFlags2
 from field_classifier import *
 from call_info import *
 
@@ -10,19 +10,19 @@ from call_info import *
 def create_call_type_classifier():
     return FieldClassifier({
 
-            SkinnyCallAttrs.Established : [( DictValuesField("states_history"), 
+            SkinnyCallAttrs.Established : [( DictValuesField('states_history'), 
                                             [
                                                 SkinnyCallStates.Connected
                                             ], True )],
 
             SkinnyCallAttrs.ExternalNum : [], # TODO
 
-            SkinnyCallAttrs.Interrupted : [( DictValuesField("states_history"), 
+            SkinnyCallAttrs.Interrupted : [( DictValuesField('states_history'), 
                                             [
                                                 SkinnyCallStates.Hold
                                             ], True )],
 
-            SkinnyCallAttrs.P2P         : [( DictValuesField("keys_history"), 
+            SkinnyCallAttrs.P2P         : [( DictValuesField('keys_history'), 
                                             [
                                                 SkinnyKeyEvents.Transfer, 
                                                 SkinnyKeyEvents.Confrn, 
@@ -32,12 +32,12 @@ def create_call_type_classifier():
             SkinnyCallAttrs.Forward     : [], # TODO
 
             SkinnyCallAttrs.Transfer    : [
-                                            ( DictValuesField("keys_history"),  
+                                            ( DictValuesField('keys_history'),  
                                             [
                                                 SkinnyKeyEvents.Transfer, 
                                                 SkinnyKeyEvents.Resume
                                             ], True ),
-                                            ( DictValuesField("states_history"),
+                                            ( DictValuesField('states_history'),
                                             [
                                                 SkinnyCallStates.Hold
                                             ], True )
@@ -62,52 +62,52 @@ class PhoneSession(SessionBase, JsonSerializable, RtpFlowsContainer):
             for call in self.calls.values():
                 call.set_owner(self)
 
-            # FIXME
-            m = re.match(r'^(?P<local_ip>\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})_(?P<local_port>\d{1,5})_(?P<remote_ip>\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})_(?P<remote_port>\d{1,5})_', 
-                self.s_info.filename)
-            if not m:
-                raise ValueError('cannot parse IP info from filename')
-
-            self.ip_info = IpTuple()
-
-            self.ip_info.local_ip = m.group('local_ip')
-            self.ip_info.local_port = m.group('local_port')
-            
-            self.ip_info.remote_ip = m.group('remote_ip')
-            self.ip_info.remote_port = m.group('remote_port')
-
         else:
             self.__call_classifier = create_call_type_classifier()
 
             self.calls_summary = {}
 
-            self.register_info = {
+            self.register = {
                 # per line
-                "number" : {},
-                "name" : {},
+                'number' : {},
+                'name' : {},
                 # per line, if line res. msg info not captured
-                "tries" : {},
+                'tries' : {},
 
-                # Fields:
-                # "station_ip"
-                # "device_type"
-                # "mac_addr"
-                # "max_rtp"
-                # "max_confs"
-                # "max_lines"
-                # "protocol_ver"
-                # "firmware_load_name"
-                "info" : None,
+                # fields available only if 'SkinnySessionFlags2.FromBegining' bit set
+                'info' : {
+                    'max_rtp': None, 
+                    'firmware_load_name': None, 
+                    'protocol_ver': None, 
+                    'max_lines': None, 
+                    'mac_addr': None, 
+                    'device_type': None, 
+                    'max_confs': None, 
+                    'station_ip': None
+                },
 
-                "protocol" :
-                {
-                    "requested" : None,
-                    "max_supported" : None,
-                    "used" : None,
+                # fields available only if 'SkinnySessionFlags2.FromBegining' bit set
+                'protocol' : {
+                    'requested' : None,
+                    'max_supported' : None,
+                    'used' : None,
                 }
             }
 
-            # TODO: summary - Missed/Answered/Issued/Answered+Transfer calls, Errors
+            self.derived_info = {
+                # from flow tuple, double checked from register info, if 'SkinnySessionFlags2.FromBegining' bit set
+                'ip' : None, 
+                # from ORCa, if 'SkinnySessionFlags2.RealIpKnown' bit set
+                'real_ip' : None, 
+                'session_flags' : SkinnySessionFlags2.No,
+                # this include errors not bound to particular call, e.g. 'ErrorType2.SoftKeyUnknown'
+                'session_errors' : ErrorType2.No,
+                # TODO: error_code => [artifacts], not implemented now
+                'session_errors_info' : {} 
+            }
+
+            # set before this session opening
+            self.ip_info = None
             
             # list of (callid, completed) tuples, 
             # actually only during pcap-session reconstruction 
@@ -120,11 +120,12 @@ class PhoneSession(SessionBase, JsonSerializable, RtpFlowsContainer):
             self.callfree_soft_keys = {} # must be empty if no opened calls on session closure
             ### self.pending_transfers = [] # not implemented
 
-            self.session_errors = ErrorType2.No
-            ### self.__session_errors_ctx = {} # TODO: error_code => [artifacts], not implemented now
             self.__bypass = False
 
-            # for self-testing before session closure,
+            #
+            # for session self-tests, before session closure
+            #
+
             # callid => call_summary
             self.__test_calls = {
 
@@ -134,7 +135,7 @@ class PhoneSession(SessionBase, JsonSerializable, RtpFlowsContainer):
     def classify_call(self, call_info):
         if self.__call_classifier:
             call_attrs = self.__call_classifier.classify_object(call_info)
-            ### print "[classify_call] call: %s, call attrs: %s" % (call_info.callid, hex(call_attrs))
+            ### print '[classify_call] call: %s, call attrs: %s' % (call_info.callid, hex(call_attrs))
             call_info.set_call_attribute(call_attrs)
 
 
@@ -144,9 +145,9 @@ class PhoneSession(SessionBase, JsonSerializable, RtpFlowsContainer):
             return
 
         self.__test_calls[callid] = {
-            "states" : [],
-            "keys" : [],
-            "completed": False
+            'states' : [],
+            'keys' : [],
+            'completed': False
         }
 
 
@@ -155,7 +156,7 @@ class PhoneSession(SessionBase, JsonSerializable, RtpFlowsContainer):
         if callid not in self.__test_calls.keys():
             return
 
-        self.__test_calls[callid]["completed"] = True
+        self.__test_calls[callid]['completed'] = True
 
 
     def test_append_call_state(self, callid, call_state):
@@ -163,7 +164,7 @@ class PhoneSession(SessionBase, JsonSerializable, RtpFlowsContainer):
         if callid not in self.__test_calls.keys():
             return
 
-        self.__test_calls[callid]["states"].append(call_state)
+        self.__test_calls[callid]['states'].append(call_state)
 
 
     def test_append_key(self, callid, key):
@@ -171,7 +172,7 @@ class PhoneSession(SessionBase, JsonSerializable, RtpFlowsContainer):
         if callid not in self.__test_calls.keys():
             return
 
-        self.__test_calls[callid]["keys"].append(key)
+        self.__test_calls[callid]['keys'].append(key)
 
 
     def test_do(self):
@@ -191,8 +192,8 @@ class PhoneSession(SessionBase, JsonSerializable, RtpFlowsContainer):
 
         for callid, call_info in self.calls.items():
             if callid in seen_calls:
-                if len(call_info.states_history) == len(self.__test_calls[callid]["states"]):
-                    seen_completed = self.__test_calls[callid]["completed"]
+                if len(call_info.states_history) == len(self.__test_calls[callid]['states']):
+                    seen_completed = self.__test_calls[callid]['completed']
                     real_completed = call_info.parse_state == ParseState.CLOSED
 
                     if seen_completed == real_completed:
@@ -201,18 +202,18 @@ class PhoneSession(SessionBase, JsonSerializable, RtpFlowsContainer):
                         print 'callid %s : seen_completed: %s, real_completed: %s' % (seen_completed, real_completed, callid)
                 else:
                     print 'callid %s : len mismatched: real %s vs test-seen %s' % (
-                        callid, len(call_info.states_history), len(self.__test_calls[callid]["states"]))
+                        callid, len(call_info.states_history), len(self.__test_calls[callid]['states']))
                     print call_info.states_history
             else:
                 print 'callid %s not in seen_calls' % callid
 
         if confirmed_calls != len(seen_calls) or len(processed_calls) != len(seen_calls):
-            print "test seen: %s" % seen_calls
-            print "processed: %s" % processed_calls
-            raise ValueError( "[test_do] processed %s total calls, seen %s, but completely confirmed %s" % (
+            print 'test seen: %s' % seen_calls
+            print 'processed: %s' % processed_calls
+            raise ValueError( '[test_do] processed %s total calls, seen %s, but completely confirmed %s' % (
                 len(processed_calls), len(seen_calls), confirmed_calls) )
         else:
-            print "[test_do] processed %s total calls, seen and confirmed %s" % (
+            print '[test_do] processed %s total calls, seen and confirmed %s' % (
                 len(processed_calls), confirmed_calls)
 
         print PRINT_DELIMETER
@@ -234,12 +235,12 @@ class PhoneSession(SessionBase, JsonSerializable, RtpFlowsContainer):
 
 
     def set_session_error(self, error, error_ctx = None):
-        self.session_errors |= error
-        self.__bypass = self.session_errors <= ErrorType2.MaxCritical
+        self.derived_info['session_errors'] |= error
+        self.__bypass = self.derived_info['session_errors'] <= ErrorType2.MaxCritical
 
 
     def get_session_errors(self):
-        return self.session_errors
+        return self.derived_info['session_errors']
 
 
     def is_bypass_on(self):
@@ -247,91 +248,93 @@ class PhoneSession(SessionBase, JsonSerializable, RtpFlowsContainer):
 
 
     def get_proto_version(self):
-        return self.register_info["protocol"]["used"]
+        return self.register['protocol']['used']
 
 
     def set_register_info(self, info):
-        ### print "[set_register_info]"
+        ### print '[set_register_info]'
 
-        if self.register_info["info"]:
-            raise ValueError("already registered")
+        if self.register['info']['mac_addr']:
+            raise ValueError('already registered')
 
-        self.register_info["info"] = info
-        self.register_info["protocol"]["requested"] = info["protocol_ver"]
+        self.register['info'] = info
+        self.register['protocol']['requested'] = info['protocol_ver']
 
-        self.s_info.in_mdl = False
+        self.derived_info['session_flags'] |= SkinnySessionFlags2.FromBegining
+        if self.derived_info['ip'] != info['station_ip']:
+            raise ValueError('station_ip != flow.src_ip : %s != %s' % (info['station_ip'], self.derived_info['ip']))
 
 
     def get_register_info_all(self):
-        return self.register_info
+        return self.register
 
 
     def set_register_ack_info(self, info):
-        self.register_info["protocol"]["max_supported"] = info["max_protocol_ver"]
+        self.register['protocol']['max_supported'] = info['max_protocol_ver']
 
 
     def set_ip_port_info(self, version):
-        self.register_info["protocol"]["used"] = version
+        self.register['protocol']['used'] = version
 
 
     def set_line_info(self, info):
         line = info[0]
-        ### print "[set_line_info] line: %s" % line
+        ### print '[set_line_info] line: %s' % line
 
-        if line in self.register_info["number"].keys():
-            raise ValueError("line '%s' already initialzed by CCM" % line)
-        self.register_info["number"][line] = info[1]
+        if line in self.register['number'].keys():
+            raise ValueError('line \'%s\' already initialzed by CCM' % line)
+        self.register['number'][line] = info[1]
 
-        if line in self.register_info["name"].keys():
-            raise ValueError("line '%s' already initialzed by CCM" % line)
-        self.register_info["name"][line] = info[2]
+        if line in self.register['name'].keys():
+            raise ValueError('line \'%s\' already initialzed by CCM' % line)
+        self.register['name'][line] = info[2]
 
-        self.register_info["tries"][line] = 4
+        self.register['tries'][line] = 4
 
 
     # return True if info update (for all lines) completed, False otherwise
     def update_line_info(self, callid):
         completed = False
 
-        if self.register_info["tries"] != None:
+        if self.register['tries'] != None:
             call_info = self.calls[callid]
             line = call_info.line
 
-            #print call_info.line, self.register_info["number"].keys()
-            #print self.register_info["tries"].keys()
+            #print call_info.line, self.register['number'].keys()
+            #print self.register['tries'].keys()
 
-            tried = self.register_info["tries"][line] if line in self.register_info["tries"].keys() else 0
+            tried = self.register['tries'][line] if line in self.register['tries'].keys() else 0
 
             if tried < 4:
-                real_owner = call_info.get_party_end("local")
+                real_owner = call_info.get_party_end('local')
 
                 if real_owner != None:
                     
-                    if line not in self.register_info["number"].keys():
-                        self.register_info["number"][line] = real_owner[0]
+                    if line not in self.register['number'].keys():
+                        self.register['number'][line] = real_owner[0]
 
-                    if line not in self.register_info["name"].keys():
-                        self.register_info["name"][line] = real_owner[1]
+                    if line not in self.register['name'].keys():
+                        self.register['name'][line] = real_owner[1]
 
-                    if self.register_info["number"][line] == real_owner[0] and self.register_info["name"][line] == real_owner[1]:
+                    if self.register['number'][line] == real_owner[0] and self.register['name'][line] == real_owner[1]:
                         tried += 1
                     else:
                         tried = 0
-                        print "**** reset tried counter!"
+                        print '**** reset tried counter!'
 
-                self.register_info["tries"][line] = tried
+                self.register['tries'][line] = tried
 
 
             lines_done = 0
-            for line in self.register_info["number"].keys():
-                if self.register_info["tries"][line] == 4:
+            for line in self.register['number'].keys():
+                if self.register['tries'][line] == 4:
                     lines_done += 1
 
-            if lines_done == len(self.register_info["number"].keys()):
-                self.register_info["tries"] = None
+            if lines_done == len(self.register['number'].keys()):
+                self.register['tries'] = None
                 completed = True
 
-        ### print "[update_line_info] completed: %s" % completed
+        ### print '[update_line_info] completed: %s' % completed
 
         return completed
 
@@ -339,66 +342,82 @@ class PhoneSession(SessionBase, JsonSerializable, RtpFlowsContainer):
     def show_session_details(self):
         print PRINT_DELIMETER
 
-        print '[%s - %s] [ %s ] [ %s ] \n' % (
+        #
+        # don't trust 'end_time' value - it's 'ended' with 1st completed call,
+        # but completely valid in .json
+        #
+        print '[msg: %s - %s] [ip: %s - %s] [ %s ] [ %s ] \n' % (
             datetime.datetime.fromtimestamp(self.s_info.st_time),
             datetime.datetime.fromtimestamp(self.s_info.end_time),
-            self.s_info.filename,
-            'in middle' if self.s_info.in_mdl else 'from beginning'
-        )
-        info = self.register_info["info"]
-        if info != None:
-            protocol = self.register_info["protocol"]
-            
-            print "Device: %s, ip: %s (mac: %s), max RTPs: %s, proto: requested: %s, supported.max: %s, used: %s" % (
-                hex(info["device_type"]), 
-                info["station_ip"], 
-                info["mac_addr"],
-                info["max_rtp"],
-                protocol["requested"],
-                protocol["max_supported"],
-                protocol["used"]
-            )
 
-        for line in self.register_info['number'].keys():
-            number = self.register_info['number'][line]
+            datetime.datetime.fromtimestamp(self.ip_info.st_time),
+            datetime.datetime.fromtimestamp(self.ip_info.end_time),
+
+            self.s_info.filename,
+            'in middle' if (self.derived_info['session_flags'] & SkinnySessionFlags2.FromBegining) == 0 else 'from beginning'
+        )
+        info = self.register['info']
+        protocol = self.register['protocol']
+        
+        print 'Device: %s, ip: %s (mac: %s), max RTPs: %s, proto: requested: %s, supported.max: %s, used: %s' % (
+
+            hex(info['device_type'])    if info['device_type']          else '<unknown>', 
+            info['station_ip']          if info['station_ip']           else self.derived_info['ip'], 
+            info['mac_addr']            if info['mac_addr']             else '<unknown>',
+            info['max_rtp']             if info['max_rtp']              else '<unknown>',
+            protocol['requested']       if protocol['requested']        else '<unknown>',
+            protocol['max_supported']   if protocol['max_supported']    else '<unknown>',
+            protocol['used']            if protocol['used']             else '<unknown>'
+        )
+
+        for line in self.register['number'].keys():
+            number = self.register['number'][line]
             if number != '':
                 print 'Line [%s] : #%s / \'%s\'' % (
                         line,
                         number,
-                        self.register_info['name'][line] if self.register_info['name'].has_key(line) else ''
+                        self.register['name'][line] if self.register['name'].has_key(line) else ''
                     )
 
         #
         # drop empty lines & numbers
         #
-        self.register_info['number'] = {
-            line: num for line, num in self.register_info['number'].items() if num.strip() != '' 
+        self.register['number'] = {
+            line: num for line, num in self.register['number'].items() if num.strip() != '' 
         }
 
-        self.register_info['name'] = {
-            line: name for line, name in self.register_info['name'].items() if name.strip() != '' 
+        self.register['name'] = {
+            line: name for line, name in self.register['name'].items() if name.strip() != '' 
         }
 
         return False # no errors
 
 
-    def begin_session_header(self):
+    def open_phone_session(self):
+        #
+        # (1) open session header
+        #
         self.begin_call(0)
+
+        #
+        # (2)setup derived info
+        #
+        self.derived_info['ip'] = self.ip_info.local_ip
 
 
     def complete_session_header(self):
 
-        ### print "[complete_session_header]"
+        ### print '[complete_session_header]'
         self.complete_call(0)
         
 
     def begin_call(self, callid):
         # if callid == 0:
-        #   raise ValueError("call id can't be 0")
+        #   raise ValueError('call id can't be 0')
 
         self.calls_history.append( (callid, False) )
 
-        ### print "[begin_call] callid = %s, index = %s" % (callid, len(self.calls_history) - 1)
+        ### print '[begin_call] callid = %s, index = %s' % (callid, len(self.calls_history) - 1)
 
 
     # This call almost [due to OnHook state] ready. 
@@ -406,11 +425,11 @@ class PhoneSession(SessionBase, JsonSerializable, RtpFlowsContainer):
     # We assume this-call RTP stats will appear before next call ends.
     def complete_call(self, callid):
         if (callid, False) not in self.calls_history:
-            raise ValueError("callid '%s' not in history" % callid)
+            raise ValueError('callid \'%s\' not in history' % callid)
 
         limit_ind = self.calls_history.index( (callid, False) )
 
-        ### print "[complete_call] callid = %s, limit_ind = %s" % (callid, limit_ind)
+        ### print '[complete_call] callid = %s, limit_ind = %s' % (callid, limit_ind)
         
         self.calls_history[limit_ind] = (callid, True)
 
@@ -422,26 +441,31 @@ class PhoneSession(SessionBase, JsonSerializable, RtpFlowsContainer):
             if self.calls_history[self.__next_print_ind][1] == False:
                 break;
 
-            #print "**** go: __next_print_ind = %s" % self.__next_print_ind
+            #print '**** go: __next_print_ind = %s' % self.__next_print_ind
 
             callid = self.calls_history[self.__next_print_ind][0]
 
             print_item = self.calls[callid] if callid > 0 else self
 
             if isinstance(print_item, CallInfo):
-                if print_item.complete_call():
-                    self.session_errors |= print_item.show_call_details()
+                res, call_errors = print_item.close_call()
+                if res:
+                    self.derived_info['session_errors'] |= call_errors
+                    print_item.show_call_details()
+
             else:
                 print_item.show_session_details()
 
             self.__next_print_ind += 1
 
 
-    def flush_calls(self):
+    def close_phone_session(self):
         limit_ind = len(self.calls_history)
-        ### print "[flush_calls] limit_ind = %s" % limit_ind
+        ### print '[close_phone_session] limit_ind = %s' % limit_ind
         
+        #
         # (1) print previously ended items and collect summary status
+        #
         while self.__next_print_ind < limit_ind:
 
             callid = self.calls_history[self.__next_print_ind][0]
@@ -451,26 +475,40 @@ class PhoneSession(SessionBase, JsonSerializable, RtpFlowsContainer):
             print_item = self.calls[callid] if callid > 0 else self
             
             if isinstance(print_item, CallInfo):
-                if print_item.complete_call():
-                    self.session_errors |= print_item.show_call_details()
+                if self.__next_print_ind + 1 == limit_ind:
+                    print_item.call_attrs |= SkinnyCallAttrs.LastCall
 
-                # print "********"
+                res, call_errors = print_item.close_call()
+                if res:
+                    self.derived_info['session_errors'] |= call_errors
+                    print_item.show_call_details()
+
+                # print '********'
                 # print json.dumps(print_item.__dict__, cls=CallInfoJsonEncoder, indent=4)
-                # print "********"
+                # print '********'
             else:
                 print_item.show_session_details()
 
             self.__next_print_ind += 1
-        
+
+
+        #
         # (2) perform self-tests
+        #
         self.test_do()
 
-        return self.session_errors
+        
+        #
+        # (3) make summary info for session
+        #
+        self.build_summary()
+
+        return self.derived_info['session_errors']
 
 
     def build_summary(self):
 
-        print "\nSummary for phone session:\n"
+        print '\nSummary for phone session:\n'
 
         #
         # walk array types
@@ -482,8 +520,8 @@ class PhoneSession(SessionBase, JsonSerializable, RtpFlowsContainer):
                 if key not in uniq_keys:
                     uniq_keys.append(key)
 
-        self.calls_summary["soft_keys"] = uniq_keys
-        print "soft keys:", uniq_keys
+        self.calls_summary['soft_keys'] = uniq_keys
+        print 'soft keys:', uniq_keys
 
 
         uniq_states = []
@@ -492,8 +530,8 @@ class PhoneSession(SessionBase, JsonSerializable, RtpFlowsContainer):
                 if state not in uniq_states:
                     uniq_states.append(state)
 
-        self.calls_summary["call_states"] = uniq_states
-        print "call states:", uniq_states
+        self.calls_summary['call_states'] = uniq_states
+        print 'call states:', uniq_states
 
 
         uniq_ctypes = []
@@ -501,8 +539,8 @@ class PhoneSession(SessionBase, JsonSerializable, RtpFlowsContainer):
             if call_info.call_type not in uniq_ctypes:
                 uniq_ctypes.append(call_info.call_type)
 
-        self.calls_summary["call_types"] = uniq_ctypes
-        print "call types:", uniq_ctypes
+        self.calls_summary['call_types'] = uniq_ctypes
+        print 'call types:', uniq_ctypes
 
 
         #
@@ -513,55 +551,27 @@ class PhoneSession(SessionBase, JsonSerializable, RtpFlowsContainer):
         for call_info in self.calls.values():
             sum_call_attrs |= call_info.get_call_attributes()
 
-        self.calls_summary["call_attrs"] = sum_call_attrs
-        print "call attrs:", SkinnyCallAttrs.str(sum_call_attrs)
+        self.calls_summary['call_attrs'] = sum_call_attrs
+        print 'call attrs:', SkinnyCallAttrs.str(sum_call_attrs)
 
-
-
-        # print "\nSummary for session:\n"
 
         #
-        # collected once
+        # walk error types
         #
 
-        # self._lookup_keys["session_errors"] = self.get_session_errors()
-        # print "session errors:", self._lookup_keys["session_errors"]
+        sum_call_errors = ErrorType2.No
+        for call_info in self.calls.values():
+            sum_call_errors |= call_info.call_errors
 
-        # info_all = self.get_register_info_all()
-
-        # self._lookup_keys["proto_used"] = info_all["protocol"]["used"]
-        # print "proto used:", self._lookup_keys["proto_used"]
-
-        # self._lookup_keys["proto_req"] = info_all["protocol"]["requested"]
-        # print "proto req:", self._lookup_keys["proto_req"]
-
-        # self._lookup_keys["owner_ip"] = info_all["info"]["station_ip"]
-        # print "owner ip:", self._lookup_keys["owner_ip"]
-
-        # self._lookup_keys["owner_mac"] = info_all["info"]["mac_addr"]
-        # print "owner mac:", self._lookup_keys["owner_mac"]
-
-        # self._lookup_keys["device_type"] = hex(info_all["info"]["device_type"])
-        # print "device type:", self._lookup_keys["device_type"]
-
-
-        # self._lookup_keys["owner_number"] = []
-        # self._lookup_keys["owner_name"] = []
-        # for line, number in self.register_info["number"].items():
-        #     if number == "":
-        #         continue
-        #     self._lookup_keys["owner_number"].append(number)
-        #     self._lookup_keys["owner_name"].append(self.register_info["name"][line])
-
-        # print "owner name:", self._lookup_keys["owner_name"]
-        # print "owner number:", self._lookup_keys["owner_number"]
+        self.calls_summary['call_errors'] = sum_call_errors
+        print 'call errors:', ErrorType2.str(sum_call_errors)
 
 
     def get_json_dict(self):
         dict_res = super(PhoneSession, self).get_json_dict()
 
-        del dict_res["calls_history"][0]
-        del dict_res["callfree_soft_keys"]
+        del dict_res['calls_history'][0]
+        del dict_res['callfree_soft_keys']
 
         return dict_res
 
@@ -585,23 +595,19 @@ class PhoneSessionIterator(SessionIterator, SessionHandler):
 
     def open_session(self, context):
         SessionIterator.open_session(self, context) 
-        self._context.begin_session_header()     
+        self._context.open_phone_session()
 
 
     def close_session(self):
 
-        errors = self._context.flush_calls()
-
-        self._context.build_summary()
-
-        #self._context.to_json()
+        errors = self._context.close_phone_session()
 
         return errors
 
 
     def process_msg(self, sccp_msg, fdir, pkt_time):
         stop_processing = False
-        # print "[PhoneSessionIterator::process_msg] msg: %s, len: %s + 12 bytes, ver.: %s, dir: %s, time: %s" % (
+        # print '[PhoneSessionIterator::process_msg] msg: %s, len: %s + 12 bytes, ver.: %s, dir: %s, time: %s' % (
         #     hex(sccp_msg.msg), sccp_msg.len, sccp_msg.res, fdir, pkt_time)
         
         if not self._context.s_info.st_time: 
@@ -621,14 +627,14 @@ class PhoneSessionIterator(SessionIterator, SessionHandler):
 
     def __assert(self, assert_exp, failed_msg = None):
         if assert_exp == False:
-            extra = ( ". Details : " + str(failed_msg) ) if failed_msg != None else ""
-            raise ValueError("assertion failed" + extra)
+            extra = ( '. Details : ' + str(failed_msg) ) if failed_msg != None else ''
+            raise ValueError('assertion failed' + extra)
 
 
     def __test_call_info_alive(self, call_info, msg_id, raise_exc = True):
         alive = (call_info.parse_state != ParseState.CLOSED)
         if alive == False and raise_exc:
-            raise ValueError("call_info '%s' in CLOSED (%s) state while processing '%s' msg" % (
+            raise ValueError('call_info \'%s\' in CLOSED (%s) state while processing \'%s\' msg' % (
                 call_info.callid, 
                 call_info.parse_state,
                 skinny_messages_cls[msg_id])
@@ -641,7 +647,7 @@ class PhoneSessionIterator(SessionIterator, SessionHandler):
         if (res == False):
             raise ValueError("Assert 'call_info '%s' %s in '%s' state' failed, msg: '%s'" % 
                 (call_info.callid, 
-                 "" if equal else "NOT",
+                 '' if equal else 'NOT',
                  parse_state,
                  skinny_messages_cls[msg_id]
                 )
@@ -692,7 +698,7 @@ class PhoneSessionIterator(SessionIterator, SessionHandler):
         call_info.update_pstate( ParseState.LOCAL_OPENED, pkt_time )
 
         if self._context.calls.has_key(call_info.callid):
-            print "*** 104 = %s" % self._context.calls[call_info.callid].st_time
+            print '*** 104 = %s' % self._context.calls[call_info.callid].st_time
             raise ValueError('callid %s already exist [time=%s] [key=%s(%s)]' % (call_info.callid, pkt_time, skinny_key_events[sub_msg.key], sub_msg.key))
 
         # add new partially-initialized (callid == 0) call,
@@ -749,13 +755,13 @@ class PhoneSessionIterator(SessionIterator, SessionHandler):
         #       call_info.update_pstate( ParseState.LOCAL_OPENED, pkt_time )
 
         #       if self._context.calls.has_key(call_info.callid):
-        #           print "*** 104 = %s" % self._context.calls[call_info.callid].st_time
+        #           print '*** 104 = %s' % self._context.calls[call_info.callid].st_time
         #           raise ValueError('callid %s already exist [time=%s] [key=%s(%s)]' % (call_info.callid, pkt_time, skinny_key_events[sub_msg.key], sub_msg.key))
 
         #       # add new partially-initialized (callid == 0) call,
         #       # but don't append to history
         #       self._context.calls[call_info.callid] = call_info
-        #       print "ADD [0] [time=%s] [key=%s(%s)]" % (pkt_time, skinny_key_events[sub_msg.key], sub_msg.key)
+        #       print 'ADD [0] [time=%s] [key=%s(%s)]' % (pkt_time, skinny_key_events[sub_msg.key], sub_msg.key)
 
         # elif sub_msg.key == SkinnyKeyEvents.CONFRN or sub_msg.key == SkinnyKeyEvents.CFWDALL:
             
@@ -766,11 +772,11 @@ class PhoneSessionIterator(SessionIterator, SessionHandler):
         #   call_info_t.update_pstate( ParseState.LOCAL_OPENED, pkt_time )
 
         #   if self._context.calls.has_key(call_info_t.callid):
-        #       print "*** 104 = %s" % self._context.calls[call_info.callid].st_time
+        #       print '*** 104 = %s' % self._context.calls[call_info.callid].st_time
         #       raise ValueError('callid %s already exist [time=%s] [key=%s(%s)]' % (call_info_t.callid, pkt_time, skinny_key_events[sub_msg.key], sub_msg.key))
 
         #   self._context.calls[call_info_t.callid] = call_info_t
-        #   print "ADD [0] [time=%s] [key=%s(%s)]" % (pkt_time, skinny_key_events[sub_msg.key], sub_msg.key)
+        #   print 'ADD [0] [time=%s] [key=%s(%s)]' % (pkt_time, skinny_key_events[sub_msg.key], sub_msg.key)
 
         # # TODO: support transfer multiple times??
         # elif sub_msg.key == SkinnyKeyEvents.TRANSFER:
@@ -778,26 +784,26 @@ class PhoneSessionIterator(SessionIterator, SessionHandler):
         #   if self._context.calls.has_key(sub_msg.callid) == False:
         #       raise ValueError('callid %s not found' % sub_msg.callid)
 
-        #   # print "SkinnyKeyEvents.TRANSFER, callid = %s, transfers: %s" % (sub_msg.callid, len(self._context.pending_transfers))
+        #   # print 'SkinnyKeyEvents.TRANSFER, callid = %s, transfers: %s' % (sub_msg.callid, len(self._context.pending_transfers))
 
         #   # for tid in self._context.pending_transfers:
-        #   #   print "\t pending trans: %s" % tid
+        #   #   print '\t pending trans: %s' % tid
 
-        #   # append key event to "transfered" call's history
+        #   # append key event to 'transfered' call's history
         #   call_info = self._context.calls[sub_msg.callid]
 
         #   if len(self._context.pending_transfers) == 0:
         #   #if call_info.call_type == SkinnyCallType.INBOUND_CALL:
-        #       # expect "transfer to" call on line
+        #       # expect 'transfer to' call on line
         #       call_info_t = CallInfo(SkinnyCallType.OUTBOUND_CALL)
         #       call_info_t.update_pstate( ParseState.LOCAL_OPENED, pkt_time )
 
         #       if self._context.calls.has_key(call_info_t.callid):
-        #           print "*** 104 = %s" % self._context.calls[call_info.callid].st_time
+        #           print '*** 104 = %s' % self._context.calls[call_info.callid].st_time
         #           raise ValueError('callid %s already exist [time=%s] [key=%s(%s)]' % (call_info_t.callid, pkt_time, skinny_key_events[sub_msg.key], sub_msg.key))
 
         #       self._context.calls[call_info_t.callid] = call_info_t
-        #       print "ADD [0] [time=%s] [key=%s(%s)]" % (pkt_time, skinny_key_events[sub_msg.key], sub_msg.key)
+        #       print 'ADD [0] [time=%s] [key=%s(%s)]' % (pkt_time, skinny_key_events[sub_msg.key], sub_msg.key)
 
         #       self._context.pending_transfers.append( sub_msg.callid );
 
@@ -817,7 +823,7 @@ class PhoneSessionIterator(SessionIterator, SessionHandler):
         #   if sub_msg.callid in self._context.pending_transfers:
         #       self._context.pending_transfers.remove(sub_msg.callid)
         #       # DROPIT
-        #       #print "escape %s from pending transfers" % sub_msg.callid
+        #       #print 'escape %s from pending transfers' % sub_msg.callid
 
         # elif sub_msg.callid != 0 and self._context.calls.has_key(sub_msg.callid):
         #   call_info = self._context.calls[sub_msg.callid]
@@ -827,7 +833,7 @@ class PhoneSessionIterator(SessionIterator, SessionHandler):
         #   # thus call's parse state can be 'Closed'
         #   if sub_msg.key != SkinnyKeyEvents.END_CALL:
         #       if self.__test_call_info_alive(call_info, msg.msg, False) == False:
-        #           #print "put %s to error, key %s" % (sub_msg.callid, sub_msg.key)
+        #           #print 'put %s to error, key %s' % (sub_msg.callid, sub_msg.key)
         #           call_info.set_call_error(ErrorType2.OutOfState)
 
         prior_keys = [
@@ -848,11 +854,11 @@ class PhoneSessionIterator(SessionIterator, SessionHandler):
             if sub_msg.key != SkinnyKeyEvents.NewCall \
                 and sub_msg.key != SkinnyKeyEvents.Redial \
                 and sub_msg.key != SkinnyKeyEvents.CFwdAll: # FIXME
-                self.__assert( sub_msg.callid == 0, "sub_msg.key: %s" % skinny_key_events[sub_msg.key] )
+                self.__assert( sub_msg.callid == 0, 'sub_msg.key: %s' % skinny_key_events[sub_msg.key] )
 
         elif sub_msg.key < SkinnyKeyEvents.MaxKnown:
             if sub_msg.key != SkinnyKeyEvents.EndCall: # FIXME
-                self.__assert( sub_msg.callid != 0, "sub_msg.key: %s" % skinny_key_events[sub_msg.key] )
+                self.__assert( sub_msg.callid != 0, 'sub_msg.key: %s' % skinny_key_events[sub_msg.key] )
 
 
         if sub_msg.key < SkinnyKeyEvents.MaxKnown:
@@ -866,7 +872,7 @@ class PhoneSessionIterator(SessionIterator, SessionHandler):
                 else:
                     self._context.set_session_error( ErrorType2.SoftKeyOutOfState )
 
-        # unknown key, may be placed "in-call" (callid != 0) or out of any call (callid == 0)
+        # unknown key, may be placed 'in-call' (callid != 0) or out of any call (callid == 0)
         # for now, just log these keys
         else:
             if sub_msg.callid != 0 and self._context.calls.has_key(sub_msg.callid):
@@ -900,6 +906,10 @@ class PhoneSessionIterator(SessionIterator, SessionHandler):
             rtp_flow.flags |= RtpFlowFlags.LocalConfirmed
             rtp_flow.local = (sub_msg.remote, sub_msg.port)
             rtp_flow.set_st_timestamp(pkt_time)
+
+        if (self._context.derived_info['session_flags'] & SkinnySessionFlags2.RealIpKnown) == 0:
+            self._context.derived_info['real_ip'] = sub_msg.remote
+            self._context.derived_info['session_flags'] |= SkinnySessionFlags2.RealIpKnown
 
 
     def __process__0x0154__start_media_transmission_ack(self, msg, fdir, pkt_time):
@@ -1003,9 +1013,9 @@ class PhoneSessionIterator(SessionIterator, SessionHandler):
         self.__assert( sub_msg.callid != 0 )
 
         # DROPIT
-        #print "*** __process__0x0111__call_state : callid = %s" % sub_msg.callid
-        ### print "[__process__0x0111__call_state] callid = %s, state = %s" % (sub_msg.callid, sub_msg.state)
-        #print "keys: %s" % self._context.calls.keys()
+        #print '*** __process__0x0111__call_state : callid = %s' % sub_msg.callid
+        ### print '[__process__0x0111__call_state] callid = %s, state = %s' % (sub_msg.callid, sub_msg.state)
+        #print 'keys: %s' % self._context.calls.keys()
 
 
         if sub_msg.state == SkinnyCallStates.RingIn:
@@ -1105,12 +1115,12 @@ class PhoneSessionIterator(SessionIterator, SessionHandler):
         sub_msg = msg[SkinnyMessageCM5CallInfo]
         #sub_msg.show()
 
-        #print "*** __process__0x014A__call_info : callid = %s" % sub_msg.callid
+        #print '*** __process__0x014A__call_info : callid = %s' % sub_msg.callid
 
         if self._context.calls.has_key(sub_msg.callid):             
             call_info = self._context.calls[sub_msg.callid]
 
-            #print "CM5CallInfo : id = %s, pstate = %s" % (sub_msg.callid, call_info.parse_state)
+            #print 'CM5CallInfo : id = %s, pstate = %s' % (sub_msg.callid, call_info.parse_state)
             #print call_info.states_history
 
             # TODO: print pkt number in exception

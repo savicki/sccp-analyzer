@@ -69,6 +69,8 @@ class MTPSession(SessionBase, JsonSerializable):
                 rp.set_owner(self)
 
         else:
+            self.ip_info = None
+            
             self.relay_points = {}
             self.relay_points_confid_list = [] # history
             # access RP via child PPID, 

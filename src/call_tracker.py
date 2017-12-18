@@ -119,6 +119,11 @@ parser.add_argument('-s-calls', '--show-calls', help='whether to show calls when
 # 'trace' mode
 parser.add_argument('-t', '--trace-call', help='call id to trace', required=False, type=int, default=0)
 
+mode_synonyms = {
+    's' : 'search',
+    't' : 'trace'
+}
+
 # 
 # Valid samples:
 # 'session.session_errors & ErrorType2.UnknownSoftKey'
@@ -126,6 +131,9 @@ parser.add_argument('-t', '--trace-call', help='call id to trace', required=Fals
 if __name__ == "__main__":
     
     args = parser.parse_args()
+
+    if mode_synonyms.has_key(args.mode):
+        args.mode = mode_synonyms[args.mode]
 
     if args.mode != 'search' and args.mode != 'trace':
         raise ValueError('wrong mode \'%s\'' % args.mode)
@@ -249,15 +257,15 @@ if __name__ == "__main__":
 
         # (4) group phone sessions by owner
         if session_cls == SkinnySessionFlags.Phone:
-            for line in session.register_info['name'].keys():
+            for line in session.register['name'].keys():
                 # TODO: session should has 1 and only 1 owner name
                 endpoint_key = '%s %s' % (
-                    session.register_info['name'][line], 
+                    session.register['name'][line], 
                     # FIXME
-                    "session.register_info['info']['mac_addr']")
+                    "session.register['info']['mac_addr']")
 
                 if not _endpoint_map.has_key(endpoint_key):
-                    _endpoint_map[endpoint_key] = EndpointInfo( session.register_info )
+                    _endpoint_map[endpoint_key] = EndpointInfo( session.register )
 
                 endpoint = _endpoint_map[endpoint_key]
                 endpoint.add_session(session)

@@ -13,6 +13,7 @@ from json_serialization import SkinnySessionsJsonEncoder, SkinnySessionsJsonDeco
 
 
 skip_names = [
+
 ]
 
 
@@ -57,7 +58,7 @@ def process_pcap(filepath, filename):
     for pcap_session_key in pcap_sessions:
         print "[process_pcap] ", pcap_session_key
 
-        msg_session, stream_errors = get_msg_flow( pcap_sessions[pcap_session_key] )
+        msg_session, stream_errors, pkt_st_time, pkt_end_time = get_msg_flow(pcap_sessions[pcap_session_key])
 
 
         classify_iter = SessionClassifier()
@@ -68,7 +69,7 @@ def process_pcap(filepath, filename):
                 create_session_classifier()
             ) )
 
-        print "session_flags: (%s) '%s'" % ( hex(session_flags), SkinnySessionFlags.str(session_flags) )
+        print "session_flags: (%s) '%s'" % (hex(session_flags), SkinnySessionFlags.str(session_flags))
         
         if session_flags & SkinnySessionFlags.Phone:
             inspect_iter = PhoneSessionIterator()
@@ -83,6 +84,25 @@ def process_pcap(filepath, filename):
         
         if inspect_iter:
             sccp_session.s_info.filename = filename
+
+            m = re.match(r'^TCP (?P<local_ip>\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}):(?P<local_port>\d{1,5}) -- (?P<remote_ip>\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}):(?P<remote_port>\d{1,5})', 
+                pcap_session_key)
+            if not m:
+                raise ValueError('cannot parse IP info from filename')
+
+            if int(m.group('remote_port')) == SCCP_PORT:
+                ip_info = IpInfo(
+                        local_ip = m.group('local_ip'),
+                        local_port = m.group('local_port'),
+                        remote_ip = m.group('remote_ip'),
+                        remote_port = m.group('remote_port'),
+                        st_time = pkt_st_time,
+                        end_time = pkt_end_time
+                    )
+            else:
+                raise ValueError('remote port not 2000')
+
+            sccp_session.ip_info = ip_info
             sccp_errors = iterate_session(msg_session, inspect_iter, sccp_session)
             
 

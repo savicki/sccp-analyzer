@@ -19,6 +19,7 @@ class SkinnyCallAttrs(BitEnum):
     Park        = 1 << 7        #  key & Park != 0
     OneWayMediaSetup = 1 << 8
     NoRtpStats  = 1 << 9
+    LastCall    = 1 << 10
 
     @staticmethod
     def str(attrs):
@@ -39,6 +40,7 @@ skinny_call_attrs = {
     SkinnyCallAttrs.Park : "Park",
     SkinnyCallAttrs.OneWayMediaSetup : "OneWayMediaSetup",
     SkinnyCallAttrs.NoRtpStats : "NoRtpStats",
+    SkinnyCallAttrs.LastCall : "LastCall",
 }
 
 
@@ -137,6 +139,7 @@ class CallInfo(JsonSerializable, Ownable, MediaEndpoint):
             if len(self.rtp_flows_oneway) + len(self.rtp_flows_twoway) + len(self.rtp_flows_unknown) != len(self.rtp_flows):
                 raise ValueError('lost RtpFlow')
 
+            # TODO: assert
             self.rtp_durations = (min_dur, max_dur)
 
         else:
@@ -238,35 +241,6 @@ class CallInfo(JsonSerializable, Ownable, MediaEndpoint):
                 self.end_time = time
 
 
-    def complete_call(self):
-
-        if self.parse_state != ParseState.CLOSED:
-            return False
-
-        #
-        # find one-way media flows
-        #
-        rtp_flags = 0
-
-        for rtpf in self.rtp_flows.values():
-            rtp_flags |= rtpf.analyze()
-
-        if (rtp_flags & RtpFlowFlags.OneWayMediaSetup) != 0:
-            self.call_attrs |= SkinnyCallAttrs.OneWayMediaSetup
-
-        #
-        # TODO: map ConnStatRes to RtpFlow
-        #
-
-        #
-        # check for rtp stats presence
-        #
-        if len(self.rtp_stats) == 0:
-            self.call_attrs |= SkinnyCallAttrs.NoRtpStats
-
-        return True
-
-
     def get_call_details_oneline(self):
         dir_str = 'to:' if self.call_type == SkinnyCallType.OUTBOUND_CALL else 'from:'
         visavi = self.get_party_end('remote')
@@ -365,7 +339,76 @@ class CallInfo(JsonSerializable, Ownable, MediaEndpoint):
                 print '\t', stat_res
 
 
-        return self.call_errors
+    def close_call(self):
+
+        if self.parse_state != ParseState.CLOSED:
+            return False, ErrorType2.No
+
+        #
+        # (1) find one-way media flows
+        #
+        rtp_flags = 0
+
+        for rtpf in self.rtp_flows.values():
+            rtp_flags |= rtpf.analyze()
+
+        if (rtp_flags & RtpFlowFlags.OneWayMediaSetup) != 0:
+            self.call_attrs |= SkinnyCallAttrs.OneWayMediaSetup
+
+        #
+        # (2) check for rtp stats presence
+        #
+        if len(self.rtp_stats) == 0:
+            self.call_attrs |= SkinnyCallAttrs.NoRtpStats
+
+        #
+        # (3) search for repeated keys
+        #
+        prev_time = None # TODO: use timestamp, if necessary
+        prev_softkey = 0 # unassigned key
+
+        for time in sorted(self.keys_history.keys()):
+            softkey = self.keys_history[time]
+
+            if prev_softkey == 0:
+                prev_softkey = softkey
+            elif prev_softkey == softkey:
+                self.call_errors |= ErrorType2.SoftKeyRepeat
+                break;
+            else:
+                prev_softkey = softkey
+
+        #
+        # (4) try find rtp flows with too short stats
+        #
+        rtp_flows_twoway_len = 0
+        rtp_flows_twoway = None
+        for rtpf in self.rtp_flows.values():
+            if rtpf.is_two_way():
+                rtp_flows_twoway_len += 1
+                if rtp_flows_twoway_len == 1:
+                    rtp_flows_twoway = rtpf
+
+        DELTA_SEC = 5
+
+        if rtp_flows_twoway_len == 1 and len(self.rtp_stats) == 1:
+            rtpf = rtp_flows_twoway
+            rtp_stat = self.rtp_stats.values()[0]
+
+            rtpf_dur = rtpf.get_duration_sec()
+            send_dur = rtp_stat['packetsSent'] / (1000 / rtpf.local_rate)
+            recv_dur = rtp_stat['packetsRecv'] / (1000 / rtpf.remote_rate)
+
+            if abs(rtpf_dur - send_dur) > DELTA_SEC:
+                self.call_errors |= ErrorType2.RtpLostSend
+
+            if abs(rtpf_dur - recv_dur) > DELTA_SEC:
+                self.call_errors |= ErrorType2.RtpLostRecv
+
+            # print '[%s] rtp duration: %.2f sec, send: %.2f sec, recv: %.2f sec' % (
+            #     self.callid, rtpf.get_duration_sec(), send_dur, recv_dur)
+
+        return True, self.call_errors
 
 
     def dump_media_endpoint(self, label):

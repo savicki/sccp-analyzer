@@ -2,7 +2,7 @@
 import re, json
 
 from call_info import *
-from common_types import SessionInfo
+from common_types import SessionInfo, IpInfo
 from phone_session import PhoneSession, PhoneSessionIterator
 from mtp_session import MTPSession, MTPSessionIterator, RelayPoint
 
@@ -13,7 +13,8 @@ _JSON_CLASSES = {
     'RelayPoint'    : RelayPoint,
     'PhoneSession'  : PhoneSession,
     'MTPSession'    : MTPSession,
-    'SessionInfo'   : SessionInfo
+    'SessionInfo'   : SessionInfo,
+    'IpInfo'        : IpInfo
 }
 
 # single-value (!) enums

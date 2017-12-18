@@ -308,6 +308,12 @@ def get_msg_flow(pkt_flow):
     orig_hash = hashlib.sha256()
     mod_hash = hashlib.sha256()
     
+    if len(pkt_flow) > 0:
+        st_time = pkt_flow[0].time
+        end_time = pkt_flow[len(pkt_flow) - 1].time
+    else:
+        st_time = 0
+        end_time = 0
 
     for pkt in pkt_flow:
 
@@ -361,4 +367,4 @@ def get_msg_flow(pkt_flow):
 
     stream_errors &= ~(InspectAction.MaxNonCritical << 1 - 1)
 
-    return msg_flow, stream_errors
+    return msg_flow, stream_errors, st_time, end_time

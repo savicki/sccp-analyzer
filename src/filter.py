@@ -234,100 +234,119 @@ _fields_mapper = {
     'session': {
         'owner' : {
             'protocol' : {
-                'used'          : Num('session.register_info["protocol"]["used"]'),
-                'max_supported' : Num('session.register_info["protocol"]["max_supported"]'),
-                'requested'     : Num('session.register_info["protocol"]["requested"]'),
+                'used' :        Num('session.register["protocol"]["used"]'),
+                'max_supported' : Num('session.register["protocol"]["max_supported"]'),
+                'requested' :   Num('session.register["protocol"]["requested"]'),
             },
-            'names' :       Array( Str('session.register_info["name"].values()') ),
-            'numbers' :     Array( Str('session.register_info["number"].values()') )
+            'names' :           Array( Str('session.register["name"].values()') ),
+            'numbers' :         Array( Str('session.register["number"].values()') ),
+
+            #'ip' :              Str('(session.register["info"]["station_ip"] if session.register["info"] else "")'),
+            'mac' :             Str('session.register["info"]["mac_addr"]'),
+            'max_lines' :       Str('session.register["info"]["max_lines"]'),
+            'device' :          Str('session.register["info"]["device_type"]'),
+
+            'ip' :              Str('session.derived_info["ip"]', value_exp = True),
+            'real_ip' :         Str('session.derived_info["real_ip"]', value_exp = True)
         },
         'summary': {
-            'soft_keys'     : Array( Num('session.calls_summary["soft_keys"]') ),
-            'call_types'    : Array( Num('session.calls_summary["call_types"]') ),
-            'call_errors'   : Array( BitNum('session.session_errors') ),
-            'call_attrs'    : Array( BitNum('session.calls_summary["call_attrs"]') ),
-            'call_states'   : Array( Num('session.calls_summary["call_states"]') )
+            'soft_keys' :       Array(    Num('session.calls_summary["soft_keys"]') ),
+            'call_types' :      Array(    Num('session.calls_summary["call_types"]') ),
+            'call_attrs' :      Array( BitNum('session.calls_summary["call_attrs"]') ),
+            'call_states' :     Array(    Num('session.calls_summary["call_states"]') ),
+
+            'session_errors' :  Array( BitNum('session.derived_info["session_errors"]') ),
+            'session_flags' :   Array( BitNum('session.derived_info["session_flags"]') ), # type(SkinnySessionFlags2)
         },
         'info' : {
-            'filename' :    Str('session.s_info.filename'),
+            'filename' :        Str('session.s_info.filename'),
             'time' : {
-                'start' :   Num('session.s_info.st_time'),
-                'end' :     Num('session.s_info.end_time')
-            },
-            'middle' :      Num('session.s_info.in_mdl')
-        }
+                'ip' : {
+                    'start' :       Num('session.ip_info.st_time'),
+                    'end' :         Num('session.ip_info.end_time')
+                },
+                'msg' : {
+                    'start' :       Num('session.s_info.st_time'),
+                    'end' :         Num('session.s_info.end_time')
+                },
+                'delta' : {
+                    'end' :         Num('(abs(session.ip_info.end_time - session.s_info.end_time))')
+                }
+            }
+        },
+        'calls' :               Array( Num('session.calls.keys()') )
     },
     'call': {
-        'callid'            : Num('call.callid'),
-        'type'              : Num('call.call_type'),
-        'states'            : Array( Num('call.states_history.values()') ),
-        'errors'            : Array( BitNum('call.call_errors') ),
-        'attrs'             : Array( BitNum('call.call_attrs') ),
-        'soft_keys'         : Array( Num('call.keys_history.values()') ),
+        'id' :                  Num('call.callid'),
+        'type' :                Num('call.call_type'),
+        'states' :              Array(    Num('call.states_history.values()') ),
+        'errors' :              Array( BitNum('call.call_errors') ),
+        'attrs' :               Array( BitNum('call.call_attrs') ),
+        'soft_keys' :           Array(    Num('call.keys_history.values()') ),
 
         'callee' : {
-            'number' :      Str( 'call.get_party_end("remote")[0]' ),
-            'name' :        Str( 'call.get_party_end("remote")[1]' )
+            'number' :          Str( 'call.get_party_end("remote")[0]' ),
+            'name' :            Str( 'call.get_party_end("remote")[1]' )
         },
         'caller' : {
-            'number' :      Str( 'call.get_party_end("local")[0]' ),
-            'name' :        Str( 'call.get_party_end("local")[1]' )
+            'number' :          Str( 'call.get_party_end("local")[0]' ),
+            'name' :            Str( 'call.get_party_end("local")[1]' )
         },
 
         'rtp' : {
-            'flows'         : Array( Num('call.rtp_flows.keys()') ),
-            'flows_oneway'  : Array( Num('call.rtp_flows_oneway.keys()') ),
-            'flows_duplex'  : Array( Num('call.rtp_flows_twoway.keys()') ),
-            'flows_error'   : Array( Num('call.rtp_flows_unknown.keys()') ),
-            'stats'         : Array( Num('call.rtp_stats.keys()') ),
-            'dur_min'       : Num('call.rtp_durations[0]'),
-            'dur_max'       : Num('call.rtp_durations[1]')
+            'flows' :           Array( Num('call.rtp_flows.keys()') ),
+            'flows_oneway' :    Array( Num('call.rtp_flows_oneway.keys()') ),
+            'flows_duplex' :    Array( Num('call.rtp_flows_twoway.keys()') ),
+            'flows_error' :     Array( Num('call.rtp_flows_unknown.keys()') ),
+            'stats' :           Array( Num('call.rtp_stats.keys()') ),
+            'dur_min' :         Num('call.rtp_durations[0]'),
+            'dur_max' :         Num('call.rtp_durations[1]')
         },
         
         'time' : {
-            'start'         : Num('call["st_time"]'),
-            'end'           : Num('call["end_time"]'),
-            'duration'      : Num('call.get_duration_sec()')
+            'start' :           Num('call["st_time"]'),
+            'end' :             Num('call["end_time"]'),
+            'duration' :        Num('call.get_duration_sec()')
         }
     },
     'endpoint' : {
-        'sessions' :        Array( Num('endpoint.sessions') ),
-        'channels' :        Array( Num('endpoint.channels') ),
+        'sessions' :            Array( Num('endpoint.sessions') ),
+        'channels' :            Array( Num('endpoint.channels') ),
         'falls' : {
-            'items' :       Array( Num('endpoint.falls') ),
+            'items' :           Array( Num('endpoint.falls') ),
             'intervals' : {
-                'min' :     Num('endpoint.stats["duration"]["min"]'),
-                'max' :     Num('endpoint.stats["duration"]["max"]')
+                'min' :         Num('endpoint.stats["duration"]["min"]'),
+                'max' :         Num('endpoint.stats["duration"]["max"]')
             }
         },
         # FIXME: [almost] copy paste from 'session.owner' path
         'owner' : {
             'protocol' : {
-                'used'          : Num('endpoint.owner["protocol"]["used"]'),
+                'used' :        Num('endpoint.owner["protocol"]["used"]'),
                 'max_supported' : Num('endpoint.owner["protocol"]["max_supported"]'),
-                'requested'     : Num('endpoint.owner["protocol"]["requested"]'),
+                'requested' :   Num('endpoint.owner["protocol"]["requested"]'),
             },
-            'names'         : Array( Str('endpoint.owner["name"].values()') ),
-            'numbers'       : Array( Str('endpoint.owner["number"].values()') )
+            'names' :           Array( Str('endpoint.owner["name"].values()') ),
+            'numbers' :         Array( Str('endpoint.owner["number"].values()') )
         },
     },
     'fall' : {
-        'duration' :        Num('fall.duration'),
+        'duration' :            Num('fall.duration'),
         'last_call' : {
             # FIXME: [almost] copy paste from 'call' path
-            'duration' :    Num('( fall.last_call.get_duration_sec() if fall.last_call else 0 )'),
-            'ends' :        Num('( (fall.last_call.get_owner().s_info.end_time - fall.last_call.end_time) if fall.last_call else 0 )'),
+            'duration' :        Num('( fall.last_call.get_duration_sec() if fall.last_call else 0 )'),
+            'ends' :            Num('( (fall.last_call.get_owner().s_info.end_time - fall.last_call.end_time) if fall.last_call else 0 )'),
             'visavi' : {
-                'number' :  Str('( fall.last_call.get_party_end("remote")[0] if fall.last_call else "" )', value_exp = True),
-                'name' :    Str('( fall.last_call.get_party_end("remote")[1] if fall.last_call else "" )', value_exp = True)
+                'number' :      Str('( fall.last_call.get_party_end("remote")[0] if fall.last_call else "" )', value_exp = True),
+                'name' :        Str('( fall.last_call.get_party_end("remote")[1] if fall.last_call else "" )', value_exp = True)
             }
         },
         'next_call' : {
-            'duration' :    Num('( fall.next_call.get_duration_sec() if fall.next_call else 0 )'),
-            'starts' :      Num('( (fall.next_call.st_time - fall.next_call.get_owner().s_info.st_time) if fall.next_call else 0 )'),
+            'duration' :        Num('( fall.next_call.get_duration_sec() if fall.next_call else 0 )'),
+            'starts' :          Num('( (fall.next_call.st_time - fall.next_call.get_owner().s_info.st_time) if fall.next_call else 0 )'),
             'visavi' : {
-                'number' :  Str('( fall.next_call.get_party_end("remote")[0] if fall.next_call else "" )', value_exp = True),
-                'name' :    Str('( fall.next_call.get_party_end("remote")[1] if fall.next_call else "" )', value_exp = True)
+                'number' :      Str('( fall.next_call.get_party_end("remote")[0] if fall.next_call else "" )', value_exp = True),
+                'name' :        Str('( fall.next_call.get_party_end("remote")[1] if fall.next_call else "" )', value_exp = True)
             }
         }
     }
@@ -383,11 +402,11 @@ def _walk_fields_mapper_keys(str_res, obj, padding = ''):
         str_res += '\n'
 
         for k in sorted(obj.keys()):
-            str_res +=  '%s %s' % (padding, k)
+            str_res +=  '%s %s:' % (padding, k)
             str_res = _walk_fields_mapper_keys(str_res, obj[k], padding + '   ')
     
     elif isinstance(obj, Type):
-        str_res += ' : %s\n' % obj.type2str()
+        str_res += ' %s\n' % obj.type2str()
 
     return str_res
 

@@ -46,6 +46,12 @@ class PacketState(BitEnum):
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # 
 
 
+class SkinnySessionFlags2(BitEnum):
+    No              = 0
+    FromBegining    = 1 << 0
+    RealIpKnown     = 1 << 1 # at least 1 OpenReceiveChannelAck msg was captured
+
+
 # layer-2
 class SkinnySessionFlags(BitEnum):
     No          = 0
@@ -96,11 +102,13 @@ class ErrorType2(BitEnum):
     SoftKeyOutOfState       = 1 << 6  # EndCall after call closed, multiple EndCalls (session hangup?)
     SoftKeyUnknown          = 1 << 7  # not bound to any call
     # sequence of same SoftKey - session hangup (lost link with UCM?)
-    SoftKeyRepeat           = 1 << 8 # never seen from Phones
+    SoftKeyRepeat           = 1 << 8 
 
-    # no getting KeepAlive/KeepAliveAck within specified interval (lost link with UCM?)
+    # not getting KeepAlive/KeepAliveAck within specified interval (lost link with CCM)
     KeepAliveLost           = 1 << 9
-    RtpLost                 = 1 << 10    
+    # lost RTP after non-zero RTP interval
+    RtpLostSend             = 1 << 10
+    RtpLostRecv             = 1 << 11
 
 
     @staticmethod
@@ -127,7 +135,8 @@ skinny_error_types = {
 
     ErrorType2.KeepAliveLost        : "KeepAliveLost",
 
-    ErrorType2.RtpLost              : "RtpLost"
+    ErrorType2.RtpLostSend          : "RtpLostSend",
+    ErrorType2.RtpLostRecv          : "RtpLostRecv"
 }
 
 
@@ -208,26 +217,33 @@ class SessionInfo(JsonSerializable):
             self.__dict__ = data
 
         else:
-            self.in_mdl = True
             self.filename = ''
             # first msg
             self.st_time = None
             # last msg
-            # this MSG-timerange must not differ from transport range in more than KeepAlive interval
+            # this msg timerange must not differ from tcp range in more than 'KeepAlive' interval
             self.end_time = None
 
 
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 
 
-class IpTuple(JsonSerializable):
-    def __init__(self):
-        # CCM endpoint
-        self.remote_ip = None
-        self.remote_port = None
+class IpInfo(JsonSerializable):
+    def __init__(self, data = None, local_ip = None, local_port = None, remote_ip = None, remote_port = None, st_time = None, end_time = None):
 
-        self.local_ip = None
-        self.local_port = None
+        if data:
+            self.__dict__ = data
+
+        else:
+            self.local_ip = local_ip
+            self.local_port = local_port
+
+            # CCM endpoint
+            self.remote_ip = remote_ip
+            self.remote_port = remote_port
+
+            self.st_time = st_time
+            self.end_time = end_time
 
 
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #

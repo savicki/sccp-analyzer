@@ -38,7 +38,7 @@ class RtpFlow(JsonSerializable, Ownable):
 
             self.remote = None # from SMT
             self.remote_orig = None # from ORC
-            self.remote_rate = 0 # recv rate, from ClRC
+            self.remote_rate = 0 # recv rate, from ORC
             
             self.st_time = None # from ORC/SMT
             self.end_time = None # from CRC/StopMT
