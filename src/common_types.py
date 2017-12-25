@@ -94,8 +94,11 @@ class ErrorType2(BitEnum):
     #
     OutOfState              = 1 << 1 
     
+    # connections stats with 0 packets received
     RtpOneWayMediaNoRecv    = 1 << 2
+    # connections stats with 0 packets sent
     RtpOneWayMediaNoSend    = 1 << 3
+
     RtpNoMedia              = 1 << 4
     RtpMediaFailure         = 1 << 5
 

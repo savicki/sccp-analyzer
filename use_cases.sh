@@ -235,22 +235,29 @@ python call_tracker.py -f calls_db.json -m 'search' -q '(fall.last_call.visavi.n
 # 
 
 # soft key repeated, followed by phone restart
+# reliability: high
 python call_tracker.py  -f calls_db/calls_db__XXX_dec.json -m 'search' -q '(call.errors has ErrorType2.SoftKeyRepeat) && (call.attrs has SkinnyCallAttrs.LastCall)'
 
 # phone restart
+# reliability: high
 python call_tracker.py  -f calls_db/calls_db__XXX_dec.json -m 'search' -q 'fall.duration < 60'
 
 # fall with re-call
-python call_tracker.py -f calls_db/calls_db__XXX_dec.json -m 'search' -q '(fall.last_call.visavi.number == fall.next_call.visavi.number)' 
+# reliability: high
+python call_tracker.py -f calls_db/calls_db__XXX_dec.json -m 'search' -q '(fall.last_call.visavi.number == fall.next_call.visavi.number) && (fall.last_call.duration > 0)' 
 
 # too many channels 
-python call_tracker.py  -f calls_db/calls_db__20_dec.json -m 'search' -q  'endpoint.channels.len > 2'
+# reliability: high
+python call_tracker.py  -f calls_db/calls_db__XXX_dec.json -m 'search' -q  'endpoint.channels.len > 2'
 
 # lost RTP during conversation
-python call_tracker.py  -f calls_db/calls_db__20_dec.json -m 'search' -q  '(call.errors has ErrorType2.RtpLostRecv) && ((call.errors has ErrorType2.RtpLostSend) == False)'
+# reliability: high
+python call_tracker.py  -f calls_db/calls_db__XXX_dec.json -m 'search' -q  '(call.errors has ErrorType2.RtpLostRecv) && ((call.errors has ErrorType2.RtpLostSend) == False)'
 
 # too short and last-in-session call
-python call_tracker.py  -f calls_db/calls_db__20_dec.json -m 'search' -q  '(call.time.duration < 23) && (call.time.duration > 10) && (call.states has SkinnyCallStates.Connected) && (call.attrs has SkinnyCallAttrs.LastCall)'
+# reliability: low
+python call_tracker.py  -f calls_db/calls_db__XXX_dec.json -m 'search' -q  '(call.time.duration < 23) && (call.time.duration > 10) && (call.states has SkinnyCallStates.Connected) && (call.attrs has SkinnyCallAttrs.LastCall)'
 
 # zero stats
-python call_tracker.py  -f calls_db/calls_db__20_dec.json -m 'search' -q  'call.errors has ErrorType2.RtpOneWayMediaNoRecv'
+# reliability: high
+python call_tracker.py  -f calls_db/calls_db__XXX_dec.json -m 'search' -q  '(call.errors has ErrorType2.RtpOneWayMediaNoRecv) && ((call.errors has ErrorType2.RtpOneWayMediaNoSend) == False) && (call.time.duration > 10)'
