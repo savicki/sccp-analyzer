@@ -1,5 +1,5 @@
 
-import os, sys, argparse
+import os, sys, argparse, time
 from scapy.all import *
 from scapy.contrib.skinny import *
 
@@ -13,7 +13,7 @@ from json_serialization import SkinnySessionsJsonEncoder, SkinnySessionsJsonDeco
 
 
 skip_names = [
-
+    
 ]
 
 
@@ -48,12 +48,17 @@ def iterate_session(msg_flow, iterator, context = None):
 
 
 def process_pcap(filepath, filename):
+    print "[process_pcap] [ %s ] (start) [ %s ]" % (datetime.datetime.now().strftime("%H:%M:%S.%f"), filename)
+
     pcap = rdpcap(filepath)
 
+    print "[process_pcap] [ %s ] rdpcap() completed" % datetime.datetime.now().strftime("%H:%M:%S.%f")
+
     pcap_sessions = pcap.sessions(hash_session)
+
     pcap_sccp_sessions = []
 
-    print "[process_pcap] [ %s ] [ %s session(s) ]" % (filename, len(pcap_sessions))
+    print "[process_pcap] [ %s session(s) ]" % len(pcap_sessions)
 
     for pcap_session_key in pcap_sessions:
         print "[process_pcap] ", pcap_session_key
@@ -62,14 +67,18 @@ def process_pcap(filepath, filename):
 
 
         classify_iter = SessionClassifier()
-        session_flags = iterate_session( msg_session, classify_iter, 
-            # session context
-            (
-                SessionClassifyContext(), 
-                create_session_classifier()
-            ) )
+        try:
+            session_flags = iterate_session( msg_session, classify_iter, 
+                # session context
+                (
+                    SessionClassifyContext(), 
+                    create_session_classifier()
+                ) )
+        except:
+            print "[process_pcap] got exception in iterate_session( SessionClassifier ) for [ %s ]" % filename 
+            continue
 
-        print "session_flags: (%s) '%s'" % (hex(session_flags), SkinnySessionFlags.str(session_flags))
+        print "[process_pcap] session_flags: (%s) '%s'" % (hex(session_flags), SkinnySessionFlags.str(session_flags))
         
         if session_flags & SkinnySessionFlags.Phone:
             inspect_iter = PhoneSessionIterator()
@@ -103,8 +112,11 @@ def process_pcap(filepath, filename):
                 raise ValueError('remote port not 2000')
 
             sccp_session.ip_info = ip_info
-            sccp_errors = iterate_session(msg_session, inspect_iter, sccp_session)
-            
+            try:
+                sccp_errors = iterate_session(msg_session, inspect_iter, sccp_session)
+            except:
+                print "[process_pcap] got exception in iterate_session( ***SessionIterator ) for [ %s ]" % filename 
+                continue
 
             if sccp_errors != ErrorType2.No:
                 sys.stderr.write( "**** session has errors: %s (%s)\n" % (
@@ -113,6 +125,8 @@ def process_pcap(filepath, filename):
             # if isinstance(sccp_session, PhoneSession) or isinstance(sccp_session, MTPSession):
             #   print sccp_session.to_json()
             pcap_sccp_sessions.append(sccp_session)
+
+    print "[process_pcap] (end)"
 
     return pcap_sccp_sessions
 

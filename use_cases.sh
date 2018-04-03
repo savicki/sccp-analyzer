@@ -261,3 +261,8 @@ python call_tracker.py  -f calls_db/calls_db__XXX_dec.json -m 'search' -q  '(cal
 # zero stats
 # reliability: high
 python call_tracker.py  -f calls_db/calls_db__XXX_dec.json -m 'search' -q  '(call.errors has ErrorType2.RtpOneWayMediaNoRecv) && ((call.errors has ErrorType2.RtpOneWayMediaNoSend) == False) && (call.time.duration > 10)'
+
+
+
+# signal sessions overlapping
+python call_tracker.py  -f calls_db/calls_db__XXX_dec.json -m 'search' -q 'fall.duration < 0'

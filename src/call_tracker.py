@@ -12,6 +12,7 @@ from json_serialization import SkinnySessionsJsonEncoder, SkinnySessionsJsonDeco
 
 from filter import parse_expression, stringify_filter_map
 
+# TODO: keep per-user incidents history, on daily basis
 
 # list of sessions
 _sessions_map = {
@@ -148,6 +149,8 @@ if __name__ == "__main__":
         call_expr       = _build_expression(args.query, 'call')
         endpoint_expr   = _build_expression(args.query, 'endpoint')
         fall_expr       = _build_expression(args.query, 'fall')
+
+        print 'Input query: %s' % args.query        
 
     ### print args
 
