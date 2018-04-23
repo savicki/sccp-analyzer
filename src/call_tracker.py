@@ -142,6 +142,8 @@ if __name__ == "__main__":
     if args.mode == 'trace':
         if args.trace_call == None:
             raise ValueError('specify call id to trace')
+        endpoint_expr   = None
+        fall_expr       = None
     
     elif args.mode == 'search':
         show_calls_bydef = args.show_calls.lower() == 'yes'

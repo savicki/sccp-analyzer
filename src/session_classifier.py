@@ -22,9 +22,8 @@ def create_session_classifier():
                                                 0x014a, # SkinnyMessageCM5CallInfo
                                                 0x0026, # SkinnyMessageSoftKeyEvent
 
-                                                # assuming this specific for user phone only. 
-                                                # Captured during phone registration.
-                                                0x0110, # SkinnyMessageSelectSoftKeys
+                                                # phone-specific msgs
+                                                0x0110, # SkinnyMessageSelectSoftKeys # captured during phone registration.
                                             ], True )],
 
           SkinnySessionFlags.MTP        : [( ArrayField("_seen_msgs"), 
@@ -43,11 +42,10 @@ def create_session_classifier():
 
                                            ( ArrayField("_seen_msgs"), 
                                             [
+                                                # phone-specific msgs
                                                 0x0111, # SkinnyMessageCallState 
                                                 0x014A, # SkinnyMessageCM5CallInfo
-                                                0x0026, # SkinnyMessageSoftKeyEvent 
-                                                0x0001, # SkinnyMessageRegister
-                                                0x0081, # SkinnyMessageRegisterAck
+                                                0x0026, # SkinnyMessageSoftKeyEvent
                                             ], False )],
       })
 
@@ -58,17 +56,18 @@ def create_session_classifier():
 class SessionClassifyContext(SessionBase):
     def __init__(self):
         self._capture_msgs = []
-        self._seen_msgs = []
+        self._seen_msgs = [] # unique messages
 
     def set_capture_msgs(self, msgs):
         self._capture_msgs = msgs
+        print '[set_capture_msgs] _capture_msgs: %s (%s)' % (msgs, len(msgs))
 
     def test_msg(self, msg):
         stop_processing = False
         if msg in self._capture_msgs and msg not in self._seen_msgs:
             self._seen_msgs.append(msg)
             stop_processing = len(self._capture_msgs) == len(self._seen_msgs)
-        
+
         return stop_processing
 
     def get_match_stats(self):
@@ -86,7 +85,6 @@ class SessionClassifier(SessionIterator):
         classifier = self._context[1]  # FieldClassifier
 
         classify_ctx.set_capture_msgs(classifier.get_values("_seen_msgs"))
-        print classifier.get_values("_seen_msgs")
 
     def process_msg(self, sccp_msg, fdir, pkt_time):
         # print "[SessionClassifier::process_msg] msg: %s, len: %s + 12 bytes, ver.: %s" % (
@@ -95,11 +93,11 @@ class SessionClassifier(SessionIterator):
         return self._context[0].test_msg(sccp_msg.msg)
 
     def close_session(self):
-        session_ctx = self._context[0]
-        session_classifier = self._context[1]
+        classify_ctx = self._context[0]
+        classifier = self._context[1]
 
-        print session_ctx.get_match_stats()
+        print '[close_session] get_match_stats()=', classify_ctx.get_match_stats()
 
-        session_attrs = session_classifier.classify_object(session_ctx)
+        session_attrs = classifier.classify_object(classify_ctx)
         
         return session_attrs
